@@ -210,7 +210,7 @@ async def view_file(request: Request, token: str):
 
 @app.get("/d/{token}")
 async def download_file(token: str):
-    """Скачивание или просмотр файла."""
+    """Скачивание или просмотр файла"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM files WHERE token = ?", (token,))
@@ -218,50 +218,49 @@ async def download_file(token: str):
 
         if not file_row:
             raise HTTPException(status_code=404, detail="Файл не найден")
+
         if file_row["deleted_comment_id"] is not None:
             raise HTTPException(status_code=410, detail="Файл удалён")
 
         filepath = Path(file_row["filepath"])
+
         if not filepath.exists():
             raise HTTPException(status_code=404, detail="Файл не найден на диске")
 
     mime_type = file_row["mime_type"]
     filename = file_row["filename"]
 
-    # Список MIME-типов, которые браузер должен показывать (inline), а не скачивать
-    inline_mime_types = [
-        "text/plain", "text/markdown", "text/csv",
-        "image/jpeg", "image/png", "image/gif", "image/webp",
-        "application/pdf",
-        "video/mp4", "video/webm",
-        "audio/mpeg", "audio/wav", "audio/ogg"
-    ]
-
     # Базовые заголовки безопасности
     headers = {
         "X-Content-Type-Options": "nosniff",
-        "Content-Security-Policy": "default-src 'none'"
+        "Cache-Control": "public, max-age=3600"
     }
 
-    # Проверяем, должен ли файл показываться в браузере
-    # ИСПРАВЛЕНО: inline_mime_types вместо inline_mimes
-    if mime_type in inline_mime_types or mime_type.startswith("text/"):
-        # Отдаём для просмотра (inline)
+    # Для текстовых файлов и изображений, PDF и видео - показываем в браузере
+    # НЕ добавляем Content-Disposition
+    if (mime_type.startswith("text/") or
+            mime_type.startswith("image/") or
+            mime_type == "application/pdf" or
+            mime_type.startswith("video/") or
+            mime_type.startswith("audio/")):
+        print(f"DEBUG: Показываем файл {filename} как inline")  # для лога
+
         return FileResponse(
             path=str(filepath),
             filename=filename,
             media_type=mime_type,
             headers=headers
         )
-    else:
-        # Отдаём для скачивания (attachment)
-        headers["Content-Disposition"] = f"attachment; filename=\"{filename}\""
-        return FileResponse(
-            path=str(filepath),
-            filename=filename,
-            media_type=mime_type,
-            headers=headers
-        )
+
+    # Для всех остальных - скачивание
+    print(f"DEBUG: Скачиваем файл {filename} как attachment")  # для лога
+    headers["Content-Disposition"] = f"attachment; filename=\"{filename}\""
+    return FileResponse(
+        path=str(filepath),
+        filename=filename,
+        media_type=mime_type,
+        headers=headers
+    )
 
 
 @app.post("/v/{token}/comment")
