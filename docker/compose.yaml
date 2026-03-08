@@ -1,0 +1,21 @@
+services:
+
+  aspic:
+    build:
+      context: ./
+      dockerfile: dockerfiles/app.dockerfile
+    container_name: aspic_py
+    restart: always
+    ports:
+      - "127.0.0.1:15191:15191"
+    volumes:
+      - /opt/docker/aspic/data:/opt/dix/aspic/data
+    environment:
+      - UPLOAD_DIR=/data/files
+      - MAX_FILE_SIZE=104857600
+      - TOKEN_LENGTH=8
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:15191/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
