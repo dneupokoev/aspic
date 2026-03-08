@@ -51,8 +51,10 @@
                         </audio>
                     
                     {% elif file.preview_type == 'text' %}
-                        <iframe src="/d/{{ file.token }}" class="preview-text"></iframe>
-                    
+                        <div class="preview-text-container">
+                            <iframe src="/d/{{ file.token }}" class="preview-text-iframe"></iframe>
+                        </div>
+
                     {% else %}
                         <div class="preview-placeholder">
                             <div class="placeholder-icon">📄</div>
@@ -90,7 +92,7 @@
                 <!-- Комментарии -->
                 <div class="comments-section">
                     <h3>Комментарии</h3>
-                    
+
                     <!-- Форма добавления комментария -->
                     <div class="comment-form">
                         <input type="text" id="commentAuthor" placeholder="Ваше имя (необязательно)" value="Аноним">
@@ -127,7 +129,7 @@
         async function addComment(token) {
             const author = document.getElementById('commentAuthor').value || 'Аноним';
             const content = document.getElementById('commentText').value;
-            
+
             if (!content.trim()) {
                 alert('Введите текст комментария');
                 return;
@@ -153,13 +155,24 @@
             }
         }
 
-        // Функция удаления файла
+        // Функции для работы с удалением
+        document.getElementById('showDeleteFormBtn')?.addEventListener('click', function() {
+            document.getElementById('deleteFormContainer').style.display = 'block';
+            this.style.display = 'none';
+        });
+
+        function hideDeleteForm() {
+            document.getElementById('deleteFormContainer').style.display = 'none';
+            document.getElementById('showDeleteFormBtn').style.display = 'block';
+            document.getElementById('deleteError').textContent = '';
+        }
+
         async function deleteFile(token) {
             const captcha = document.getElementById('captchaAnswer').value;
             const reason = document.getElementById('deleteReason').value;
 
             if (!captcha.trim()) {
-                alert('Введите ответ на капчу');
+                document.getElementById('deleteError').textContent = 'Введите ответ на капчу';
                 return;
             }
 
@@ -181,54 +194,51 @@
                 location.reload();
             } catch (error) {
                 document.getElementById('deleteError').textContent = error.message;
+                // Обновляем капчу (перезагружаем страницу)
+                location.reload();
             }
         }
     </script>
     <script>
-    // Функции для работы с удалением
-    document.getElementById('showDeleteFormBtn')?.addEventListener('click', function() {
-        document.getElementById('deleteFormContainer').style.display = 'block';
-        this.style.display = 'none';
-    });
+        // Обработка вставки из буфера на странице просмотра
+        document.addEventListener('paste', async function(e) {
+            if (!window.location.pathname.startsWith('/v/')) return;
 
-    function hideDeleteForm() {
-        document.getElementById('deleteFormContainer').style.display = 'none';
-        document.getElementById('showDeleteFormBtn').style.display = 'block';
-        document.getElementById('deleteError').textContent = '';
-    }
+            const items = e.clipboardData.items;
 
-    async function deleteFile(token) {
-        const captcha = document.getElementById('captchaAnswer').value;
-        const reason = document.getElementById('deleteReason').value;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    if (confirm('Вставить изображение из буфера как новый файл?')) {
+                        const file = items[i].getAsFile();
+                        const now = new Date();
+                        const timestamp = now.toISOString()
+                            .replace(/[-:]/g, '')
+                            .replace(/\..+/, '')
+                            .replace('T', '_');
+                        const filename = `clipboard_${timestamp}.png`;
 
-        if (!captcha.trim()) {
-            document.getElementById('deleteError').textContent = 'Введите ответ на капчу';
-            return;
-        }
+                        const newFile = new File([file], filename, { type: file.type });
+                        const formData = new FormData();
+                        formData.append('file', newFile);
 
-        const formData = new FormData();
-        formData.append('captcha', captcha);
-        formData.append('reason', reason);
+                        try {
+                            const response = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData
+                            });
 
-        try {
-            const response = await fetch(`/v/${token}/delete`, {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.detail || 'Ошибка при удалении');
+                            if (response.ok) {
+                                const data = await response.json();
+                                alert(`Файл загружен! Ссылка: ${window.location.origin}${data.url}`);
+                            }
+                        } catch (error) {
+                            alert('Ошибка загрузки');
+                        }
+                    }
+                    break;
+                }
             }
-
-            // Перезагружаем страницу после успешного удаления
-            location.reload();
-        } catch (error) {
-            document.getElementById('deleteError').textContent = error.message;
-            // Обновляем капчу (перезагружаем страницу или генерируем новую)
-            location.reload(); // Простейший способ
-        }
-    }
+        });
     </script>
 </body>
 </html>

@@ -89,6 +89,12 @@ h1 {
     font-size: 14px;
 }
 
+.upload-hint:last-child {
+    margin-top: 10px;
+    color: #667eea;
+    font-weight: 500;
+}
+
 .progress-container {
     text-align: center;
     padding: 40px;
@@ -243,7 +249,7 @@ footer {
     object-fit: contain;
 }
 
-.preview-pdf, .preview-text {
+.preview-pdf {
     width: 100%;
     height: 500px;
     border: none;
@@ -256,6 +262,31 @@ footer {
 
 .preview-audio {
     width: 100%;
+}
+
+/* Стили для текстового предпросмотра */
+.preview-text-container {
+    width: 100%;
+    height: 500px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f7fafc;
+}
+
+.preview-text-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: white;
+    font-family: 'Courier New', monospace;
+    padding: 20px;
+    box-sizing: border-box;
+    color: #2d3748;
+    line-height: 1.6;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 .preview-placeholder {
@@ -295,6 +326,7 @@ footer {
     border-radius: 10px;
     padding: 30px;
     margin-bottom: 40px;
+    text-align: center;
 }
 
 .delete-section h3 {
@@ -308,12 +340,35 @@ footer {
     font-size: 14px;
 }
 
+.delete-btn {
+    padding: 15px 40px;
+    background: #e53e3e;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 18px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.delete-btn:hover {
+    background: #c53030;
+}
+
+.delete-form-container {
+    margin-top: 20px;
+}
+
 .delete-form {
     display: flex;
     flex-direction: column;
     gap: 15px;
     max-width: 400px;
     margin: 0 auto;
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 
 .captcha-question {
@@ -321,9 +376,10 @@ footer {
     font-weight: bold;
     color: #333;
     text-align: center;
-    padding: 10px;
-    background: white;
+    padding: 15px;
+    background: #f0f0f0;
     border-radius: 5px;
+    margin-bottom: 10px;
 }
 
 .delete-form input {
@@ -338,7 +394,7 @@ footer {
     border-color: #e53e3e;
 }
 
-.delete-btn {
+.delete-confirm-btn {
     padding: 15px;
     background: #e53e3e;
     color: white;
@@ -349,15 +405,31 @@ footer {
     transition: background 0.3s;
 }
 
-.delete-btn:hover {
+.delete-confirm-btn:hover {
     background: #c53030;
+}
+
+.delete-cancel-btn {
+    padding: 15px;
+    background: #718096;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.delete-cancel-btn:hover {
+    background: #4a5568;
 }
 
 .delete-error {
     color: #e53e3e;
     text-align: center;
-    margin-top: 10px;
+    margin-top: 15px;
     font-size: 14px;
+    font-weight: bold;
 }
 
 .comments-section {
@@ -489,114 +561,103 @@ footer {
     background: #764ba2;
 }
 
-.delete-section {
-    background: #fff5f5;
-    border: 2px solid #feb2b2;
-    border-radius: 10px;
-    padding: 30px;
-    margin-bottom: 40px;
-    text-align: center;
-}
-
-.delete-section h3 {
-    color: #c53030;
-    margin-bottom: 10px;
-}
-
-.delete-warning {
-    color: #e53e3e;
-    margin-bottom: 20px;
-    font-size: 14px;
-}
-
-.delete-btn {
-    padding: 15px 40px;
-    background: #e53e3e;
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 18px;
-    cursor: pointer;
-    transition: background 0.3s;
-}
-
-.delete-btn:hover {
-    background: #c53030;
-}
-
-.delete-form-container {
-    margin-top: 20px;
-}
-
-.delete-form {
+/* Контейнер для кнопок вставки */
+.paste-button-container {
     display: flex;
-    flex-direction: column;
     gap: 15px;
-    max-width: 400px;
-    margin: 0 auto;
-    background: white;
-    padding: 30px;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    justify-content: center;
+    margin: 20px 0;
+    flex-wrap: wrap;
 }
 
-.captcha-question {
-    font-size: 24px;
-    font-weight: bold;
-    color: #333;
-    text-align: center;
-    padding: 15px;
-    background: #f0f0f0;
-    border-radius: 5px;
-    margin-bottom: 10px;
-}
-
-.delete-form input {
-    padding: 12px;
-    border: 2px solid #feb2b2;
-    border-radius: 5px;
-    font-size: 16px;
-}
-
-.delete-form input:focus {
-    outline: none;
-    border-color: #e53e3e;
-}
-
-.delete-confirm-btn {
-    padding: 15px;
-    background: #e53e3e;
-    color: white;
+/* Кнопки вставки */
+.paste-btn {
+    padding: 12px 24px;
     border: none;
-    border-radius: 5px;
+    border-radius: 8px;
     font-size: 16px;
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.3s;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.delete-confirm-btn:hover {
-    background: #c53030;
-}
-
-.delete-cancel-btn {
-    padding: 15px;
-    background: #718096;
+.image-paste-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
+}
+
+.image-paste-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+}
+
+.text-paste-btn {
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    color: white;
+}
+
+.text-paste-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(72, 187, 120, 0.4);
+}
+
+/* Кнопки действий после загрузки */
+.result-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.action-btn {
+    padding: 12px 24px;
     border: none;
-    border-radius: 5px;
+    border-radius: 8px;
     font-size: 16px;
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.3s;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
 }
 
-.delete-cancel-btn:hover {
-    background: #4a5568;
+.open-btn {
+    background: #4299e1;
+    color: white;
 }
 
-.delete-error {
-    color: #e53e3e;
-    text-align: center;
-    margin-top: 15px;
-    font-size: 14px;
-    font-weight: bold;
+.open-btn:hover {
+    background: #3182ce;
+    transform: translateY(-2px);
+}
+
+.new-btn {
+    background: #48bb78;
+    color: white;
+}
+
+.new-btn:hover {
+    background: #38a169;
+    transform: translateY(-2px);
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .paste-button-container,
+    .result-actions {
+        flex-direction: column;
+        padding: 0 20px;
+    }
+
+    .paste-btn,
+    .action-btn {
+        width: 100%;
+        justify-content: center;
+    }
 }
