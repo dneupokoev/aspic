@@ -254,7 +254,7 @@ async def view_file(request: Request, token: str):
 
 @app.get("/d/{token}")
 async def download_file(token: str):
-    """Скачивание файла"""
+    """Скачивание файла (или просмотр для текста)"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM files WHERE token = ?", (token,))
@@ -271,13 +271,32 @@ async def download_file(token: str):
         if not filepath.exists():
             raise HTTPException(status_code=404, detail="Файл не найден на диске")
 
+    # Определяем, показывать в браузере или скачивать
+    mime_type = file_row["mime_type"]
+    filename = file_row["filename"]
+
+    # Текстовые файлы показываем в браузере
+    if mime_type.startswith("text/"):
+        return FileResponse(
+            path=str(filepath),
+            filename=filename,
+            media_type=mime_type,
+            headers={
+                "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": "default-src 'none'"
+                # НЕТ Content-Disposition — браузер покажет сам
+            }
+        )
+
+    # Остальные файлы скачиваются
     return FileResponse(
         path=str(filepath),
-        filename=file_row["filename"],
-        media_type=file_row["mime_type"],
+        filename=filename,
+        media_type=mime_type,
         headers={
             "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy": "default-src 'none'"
+            "Content-Security-Policy": "default-src 'none'",
+            "Content-Disposition": f"attachment; filename=\"{filename}\""
         }
     )
 
