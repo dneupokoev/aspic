@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} — ASPIC</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📦 ASPIC</h1>
+            <a href="/" class="back-link">← Загрузить новый файл</a>
+        </header>
+
+        {% if deleted %}
+            <!-- Файл удалён -->
+            <div class="deleted-container">
+                <div class="deleted-icon">🗑️</div>
+                <h2>Файл был удалён</h2>
+                <p>Этот файл больше не доступен</p>
+                <a href="/" class="button">Загрузить другой файл</a>
+            </div>
+        {% else %}
+            <!-- Просмотр файла -->
+            <div class="file-container">
+                <div class="file-header">
+                    <h2>{{ file.filename }}</h2>
+                    <p class="file-meta">
+                        {{ (file.size / 1024 / 1024) | round(2) }} MB · 
+                        {{ file.created_at.strftime('%d.%m.%Y %H:%M') }}
+                    </p>
+                </div>
+
+                <!-- Предпросмотр файла -->
+                <div class="preview-container">
+                    {% if file.preview_type == 'image' %}
+                        <img src="/d/{{ file.token }}" class="preview-image" alt="{{ file.filename }}">
+                    
+                    {% elif file.preview_type == 'pdf' %}
+                        <embed src="/d/{{ file.token }}" type="application/pdf" class="preview-pdf">
+                    
+                    {% elif file.preview_type == 'video' %}
+                        <video controls class="preview-video">
+                            <source src="/d/{{ file.token }}" type="{{ file.mime_type }}">
+                        </video>
+                    
+                    {% elif file.preview_type == 'audio' %}
+                        <audio controls class="preview-audio">
+                            <source src="/d/{{ file.token }}" type="{{ file.mime_type }}">
+                        </audio>
+                    
+                    {% elif file.preview_type == 'text' %}
+                        <iframe src="/d/{{ file.token }}" class="preview-text"></iframe>
+                    
+                    {% else %}
+                        <div class="preview-placeholder">
+                            <div class="placeholder-icon">📄</div>
+                            <p>Предпросмотр недоступен</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Кнопка скачивания -->
+                <div class="download-section">
+                    <a href="/d/{{ file.token }}" class="download-btn" download>⬇️ Скачать файл</a>
+                </div>
+
+                <!-- Секция удаления -->
+                <div class="delete-section">
+                    <h3>Удалить файл</h3>
+                    <p class="delete-warning">Внимание: после удаления файл станет недоступен для всех</p>
+
+                    <!-- Кнопка "Удалить" (изначально видна) -->
+                    <button class="delete-btn" id="showDeleteFormBtn">🗑️ Удалить файл</button>
+
+                    <!-- Форма удаления с капчей (изначально скрыта) -->
+                    <div class="delete-form-container" id="deleteFormContainer" style="display: none;">
+                        <div class="delete-form">
+                            <div class="captcha-question" id="captchaQuestion">{{ captcha.question }}</div>
+                            <input type="text" id="captchaAnswer" placeholder="Ответ">
+                            <input type="text" id="deleteReason" placeholder="Причина удаления (необязательно)">
+                            <button class="delete-confirm-btn" onclick="deleteFile('{{ file.token }}')">🗑️ Подтвердить удаление</button>
+                            <button class="delete-cancel-btn" onclick="hideDeleteForm()">Отмена</button>
+                        </div>
+                        <div class="delete-error" id="deleteError"></div>
+                    </div>
+                </div>
+
+                <!-- Комментарии -->
+                <div class="comments-section">
+                    <h3>Комментарии</h3>
+                    
+                    <!-- Форма добавления комментария -->
+                    <div class="comment-form">
+                        <input type="text" id="commentAuthor" placeholder="Ваше имя (необязательно)" value="Аноним">
+                        <textarea id="commentText" placeholder="Напишите комментарий..." rows="3"></textarea>
+                        <button class="comment-btn" onclick="addComment('{{ file.token }}')">Отправить</button>
+                    </div>
+
+                    <!-- Список комментариев -->
+                    <div class="comments-list" id="commentsList">
+                        {% for comment in comments %}
+                            <div class="comment-item">
+                                <div class="comment-header">
+                                    <span class="comment-author">{{ comment.author_name }}</span>
+                                    <span class="comment-date">{{ comment.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                                </div>
+                                <div class="comment-content">{{ comment.content }}</div>
+                            </div>
+                        {% else %}
+                            <p class="no-comments">Пока нет комментариев. Будьте первым!</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+
+        <footer>
+            <p>ASPIC — файлы живут вечно, пока кто-то не нажмёт «Удалить»</p>
+        </footer>
+    </div>
+
+    <script src="/static/js/upload.js"></script>
+    <script>
+        // Функция добавления комментария
+        async function addComment(token) {
+            const author = document.getElementById('commentAuthor').value || 'Аноним';
+            const content = document.getElementById('commentText').value;
+            
+            if (!content.trim()) {
+                alert('Введите текст комментария');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('author_name', author);
+            formData.append('content', content);
+
+            try {
+                const response = await fetch(`/v/${token}/comment`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Ошибка при добавлении комментария');
+                }
+
+                location.reload();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        // Функция удаления файла
+        async function deleteFile(token) {
+            const captcha = document.getElementById('captchaAnswer').value;
+            const reason = document.getElementById('deleteReason').value;
+
+            if (!captcha.trim()) {
+                alert('Введите ответ на капчу');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('captcha', captcha);
+            formData.append('reason', reason);
+
+            try {
+                const response = await fetch(`/v/${token}/delete`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.detail || 'Ошибка при удалении');
+                }
+
+                location.reload();
+            } catch (error) {
+                document.getElementById('deleteError').textContent = error.message;
+            }
+        }
+    </script>
+    <script>
+    // Функции для работы с удалением
+    document.getElementById('showDeleteFormBtn')?.addEventListener('click', function() {
+        document.getElementById('deleteFormContainer').style.display = 'block';
+        this.style.display = 'none';
+    });
+
+    function hideDeleteForm() {
+        document.getElementById('deleteFormContainer').style.display = 'none';
+        document.getElementById('showDeleteFormBtn').style.display = 'block';
+        document.getElementById('deleteError').textContent = '';
+    }
+
+    async function deleteFile(token) {
+        const captcha = document.getElementById('captchaAnswer').value;
+        const reason = document.getElementById('deleteReason').value;
+
+        if (!captcha.trim()) {
+            document.getElementById('deleteError').textContent = 'Введите ответ на капчу';
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('captcha', captcha);
+        formData.append('reason', reason);
+
+        try {
+            const response = await fetch(`/v/${token}/delete`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.detail || 'Ошибка при удалении');
+            }
+
+            // Перезагружаем страницу после успешного удаления
+            location.reload();
+        } catch (error) {
+            document.getElementById('deleteError').textContent = error.message;
+            // Обновляем капчу (перезагружаем страницу или генерируем новую)
+            location.reload(); // Простейший способ
+        }
+    }
+    </script>
+</body>
+</html>
