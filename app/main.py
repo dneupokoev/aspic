@@ -243,9 +243,9 @@ async def download_file(token: str):
         "Content-Security-Policy": "default-src 'none'"
     }
 
-    # --- ЭТО КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ---
     # Проверяем, должен ли файл показываться в браузере
-    if mime_type in inline_mimes or mime_type.startswith("text/"):
+    # ИСПРАВЛЕНО: inline_mime_types вместо inline_mimes
+    if mime_type in inline_mime_types or mime_type.startswith("text/"):
         # Отдаём для просмотра (inline)
         return FileResponse(
             path=str(filepath),
