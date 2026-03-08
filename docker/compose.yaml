@@ -9,7 +9,7 @@ services:
     ports:
       - "127.0.0.1:15191:15191"
     volumes:
-      - /opt/docker/aspic/data:/opt/dix/aspic/data
+      - ./data:/opt/dix/aspic/data
     environment:
       - UPLOAD_DIR=/data/files
       - MAX_FILE_SIZE=104857600

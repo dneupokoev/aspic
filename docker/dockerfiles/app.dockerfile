@@ -1,9 +1,9 @@
 FROM python:3.12-slim-bookworm
 
 ENV IS_IN_DOCKER=Yes
-ENV PYTHONPATH=/opt/docker/aspic
+ENV PYTHONPATH=/opt/dix/aspic
 
-WORKDIR /opt/docker/aspic
+WORKDIR /opt/dix/aspic
 
 # Установка системных зависимостей
 RUN apt-get update && apt-get install -y \
