@@ -100,6 +100,67 @@ services:
     restart: unless-stopped
 ```
 
+## 🌐 Настройка Nginx (reverse proxy)
+
+Если вы хотите проксировать ASPIC через Nginx (например, для использования с доменом и SSL), используйте следующую конфигурацию:
+
+```nginx
+server {
+    listen 80;
+    server_name aspic.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name aspic.example.com;
+
+    # SSL-сертификаты (пример для Let's Encrypt)
+    ssl_certificate /etc/letsencrypt/live/aspic.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/aspic.example.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Максимальный размер загружаемого файла
+    client_max_body_size 500M;
+
+    # Заголовки безопасности
+    add_header X-Content-Type-Options "nosniff";
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-XSS-Protection "1; mode=block";
+
+    location / {
+        proxy_pass http://127.0.0.1:15191;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # ВАЖНО: убираем заголовок Content-Disposition,
+        # чтобы текстовые файлы открывались в браузере, а не скачивались
+        proxy_hide_header Content-Disposition;
+
+        # Увеличиваем таймауты для больших файлов
+        proxy_connect_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_read_timeout 3600s;
+    }
+
+    # Если хотите, чтобы статику раздавал Nginx (быстрее)
+    # location /static/ {
+    #     alias /opt/dix/aspic/app/static/;
+    #     expires 30d;
+    #     access_log off;
+    # }
+}
+```
+
+### 🔑 Ключевые моменты:
+
+1. **`proxy_hide_header Content-Disposition;`** — обязательная директива, чтобы текстовые файлы открывались в браузере, а не скачивались
+2. **`client_max_body_size 500M;`** — должен быть не меньше, чем `MAX_FILE_SIZE` в `.env`
+3. **Таймауты** увеличены для поддержки больших файлов
+
 ## 🧪 Локальный запуск
 
 ```bash
@@ -130,3 +191,7 @@ python -m app.main
 | `GET` | `/d/{token}` | Скачать файл |
 | `POST` | `/v/{token}/comment` | Добавить комментарий |
 | `POST` | `/v/{token}/delete` | Удалить файл (с капчей) |
+
+---
+
+**ASPIC** — файлы живут «вечно», пока кто-то не нажмёт «Удалить».

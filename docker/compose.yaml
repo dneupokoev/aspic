@@ -11,7 +11,7 @@ services:
     volumes:
       - ./data:/opt/dix/aspic/data
     environment:
-      - UPLOAD_DIR=/data/files
+      - UPLOAD_DIR=/opt/dix/aspic/data/files
       - MAX_FILE_SIZE=104857600
       - TOKEN_LENGTH=8
     healthcheck:
