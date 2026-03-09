@@ -12,6 +12,8 @@ jinja2 = "*"
 python-magic = "*"
 aiofiles = "*"
 python-dotenv = "*"
+aiosqlite = "*"
+pillow = "*"
 
 [dev-packages]
 

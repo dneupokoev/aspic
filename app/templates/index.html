@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>ASPIC — файловый хостинг</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='80' font-size='80' text-anchor='middle' font-family='Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif'%3E📦%3C/text%3E%3C/svg%3E" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header compact" id="appHeader">
+            <h1 class="app-title">📦 ASPIC</h1>
+            <p class="app-subtitle">Минималистичный файловый хостинг без регистрации и сроков хранения</p>
+        </header>
+
+        <main class="app-main">
+            <!-- Блок с ошибкой/сообщением - выводится если есть -->
+            {% if error_message %}
+            <div class="error-message" id="errorMessage">
+                <span class="error-icon">ℹ️</span>
+                <span class="error-text">{{ error_message }}</span>
+                <button class="error-close" onclick="this.parentElement.style.display='none'">✕</button>
+            </div>
+            {% endif %}
+
+            <!-- СОСТОЯНИЕ 1: ЗАГРУЗКА ФАЙЛА -->
+            <div id="state-upload" class="state visible">
+                <!-- Область для перетаскивания -->
+                <div class="upload-area" id="dropZone">
+                    <!-- Убираем accept из input, будем проверять на сервере -->
+                    <input type="file" id="fileInput" class="file-input">
+                    <div class="upload-message">
+                        <div class="upload-icon">📤</div>
+                        <p class="upload-text">Перетащите файл сюда</p>
+                    </div>
+                </div>
+
+                <!-- Контейнер для кнопок в одну строку -->
+                <div class="action-row">
+                    <!-- Кнопка для выбора файла -->
+                    <button class="btn btn-secondary action-btn" id="selectFileBtn">
+                        <span class="btn-icon">📁</span>
+                        <span class="btn-text">Выбрать файл</span>
+                    </button>
+
+                    <!-- Кнопка для вставки из буфера -->
+                    <button class="btn btn-secondary action-btn" id="pasteTrigger">
+                        <span class="btn-icon">📋</span>
+                        <span class="btn-text">Вставить из буфера</span>
+                        <span class="paste-hint">(Ctrl+V)</span>
+                    </button>
+                </div>
+
+                <p class="upload-hint">{{ upload_hint }}</p>
+            </div>
+
+            <!-- СОСТОЯНИЕ 2: ПРЕДПРОСМОТР -->
+            <div id="state-preview" class="state hidden">
+                <div class="preview-header">
+                    <div class="file-badge">
+                        <span class="file-icon" id="previewIcon">📄</span>
+                        <div class="file-meta">
+                            <span class="filename" id="previewFilename"></span>
+                            <span class="filesize" id="previewFilesize"></span>
+                            <span class="file-type" id="previewType"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="preview-container" id="previewContainer">
+                    <div class="preview-placeholder">Загрузка предпросмотра...</div>
+                </div>
+
+                <div class="preview-actions">
+                    <button class="btn btn-primary" id="confirmBtn">
+                        <span class="btn-icon">✨</span>
+                        <span class="btn-text">Создать ссылку</span>
+                    </button>
+                    <button class="btn btn-secondary" id="cancelBtn">
+                        <span class="btn-icon">←</span>
+                        <span class="btn-text">Другой файл</span>
+                    </button>
+                </div>
+
+                <div class="loading-indicator hidden" id="loadingIndicator">
+                    <div class="spinner"></div>
+                    <span>Сохранение файла...</span>
+                </div>
+            </div>
+
+            <!-- СОСТОЯНИЕ 3: РЕЗУЛЬТАТ -->
+            <div id="state-result" class="state hidden">
+                <div class="result-card">
+                    <div class="success-animation">✅</div>
+                    <h2 class="result-title">Файл сохранен!</h2>
+                    <p class="result-subtitle">Постоянная ссылка для просмотра и скачивания:</p>
+
+                    <div class="link-box">
+                        <input type="text" id="resultLink" class="link-input" readonly value="">
+                        <button class="btn-copy" id="copyBtn" title="Копировать">📋</button>
+                    </div>
+
+                    <div class="result-actions">
+                        <a href="#" id="viewFileLink" class="btn btn-primary" target="_blank">Открыть файл</a>
+                        <button class="btn btn-link" id="newUploadBtn">
+                            <span class="btn-icon">⬆️</span>
+                            Загрузить новый файл
+                        </button>
+                    </div>
+
+                    <p class="disclaimer">Файл будет храниться, пока кто-то не нажмёт «Удалить» на его странице</p>
+                </div>
+            </div>
+        </main>
+
+        <footer class="app-footer">
+            <p>ASPIC — A Simple Public Image/File Cloud · <a href="https://github.com/dneupokoev/aspic" target="_blank" rel="noopener">GitHub</a></p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

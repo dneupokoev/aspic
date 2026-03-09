@@ -11,4 +11,5 @@ set -a
 source .env
 set +a
 
-pipenv run $PIPENV_VENV_PATH/python3 -m app.main
+# Запуск с выводом ошибок
+pipenv run $PIPENV_VENV_PATH/python3 -m app.main 2>&1 | tee $PROJECT_PATH/prj_log_error.log

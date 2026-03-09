@@ -1,27 +1,38 @@
-# 📦 ASPIC — A Simple Private Image/File Cloud
+Вот **АКТУАЛИЗИРОВАННОЕ ОПИСАНИЕ** с учетом всех новых функций:
+
+```markdown
+# 📦 ASPIC — A Simple Public Image/File Cloud
 
 **ASPIC** — это минималистичный файловый хостинг с возможностью комментирования и удаления файлов через капчу.  
 Никакой регистрации, никаких владельцев, никаких сроков хранения.
 
 ## 🚀 Возможности
 
-- ✅ Загрузка файлов через **drag-and-drop** или по **API**
+- ✅ Загрузка файлов через **drag-and-drop**, **выбор файла** или **вставку из буфера** (Ctrl+V)
+- ✅ Поддержка **всех популярных форматов**: изображения, видео, аудио, документы, архивы, код
 - ✅ Получение **вечной ссылки** на файл
-- ✅ **Предпросмотр** изображений, PDF, видео, аудио и текста
-- ✅ **Комментарии** к файлам (без регистрации)
-- ✅ **Удаление файлов** с подтверждением через капчу
-- ✅ Все действия логируются в единую таблицу `comments`
+- ✅ **Предпросмотр** изображений, PDF, видео, аудио и текста прямо в браузере
+- ✅ **Комментарии** к файлам с автоматическим сохранением имени автора
+- ✅ **Удаление файлов** с подтверждением через капчу и сохранением причины
+- ✅ **Две ссылки** на файл: на страницу просмотра и прямую ссылку для встраивания
+- ✅ **Статистика**: отдельные счетчики просмотров и скачиваний
+- ✅ **Защита от накрутки**: уникальные просмотры с одного IP раз в час
+- ✅ **Soft delete**: файлы помечаются удаленными, но физически удаляются отдельным скриптом
+- ✅ **Адаптивный дизайн** для мобильных устройств
+- ✅ **Темная тема** (автоматически подстраивается под систему)
 - ✅ Полная изоляция: файлы хранятся на диске, метаданные в SQLite
 - ✅ Гибкая настройка через `.env`
 - ✅ Готов к запуску в **Docker**
 
 ## 🧱 Технологии
 
-- **Python 3.12** + **FastAPI**
-- **SQLite** (с WAL-режимом)
+- **Python 3.12** + **FastAPI** — современный асинхронный фреймворк
+- **SQLite** (с WAL-режимом) — легковесная база данных
+- **aiosqlite** — асинхронная работа с SQLite
 - **Jinja2** — шаблонизатор
-- **SlowAPI** — rate limiting
+- **SlowAPI** — rate limiting для защиты от злоупотреблений
 - **python-magic** — проверка MIME-типов по содержимому
+- **Pillow** — получение информации об изображениях
 - **Aiofiles** — асинхронная работа с файлами
 - **Uvicorn** — ASGI-сервер
 
@@ -31,11 +42,20 @@
 aspic/
 ├── app/
 │   ├── main.py           # основной код приложения
-│   ├── database.py       # работа с SQLite
+│   ├── database.py       # работа с SQLite (aiosqlite)
+│   ├── config.py         # конфигурация из .env
 │   ├── captcha.py        # простая капча
-│   ├── static/           # CSS, JS
-│   └── templates/        # HTML-шаблоны (base.html, view.html)
+│   ├── cleanup.py        # скрипт для физического удаления файлов
+│   ├── static/           # CSS, JS, favicon
+│   │   ├── style.css
+│   │   └── app.js
+│   └── templates/        # HTML-шаблоны
+│       ├── index.html     # главная страница (загрузка)
+│       └── view.html      # страница просмотра файла
 ├── data/                 # загруженные файлы и БД
+│   ├── files/            # постоянное хранилище
+│   ├── preview/          # временные файлы для предпросмотра
+│   └── aspic.db          # SQLite база данных
 ├── .env                  # конфигурация
 ├── requirements.txt
 └── README.md
@@ -53,12 +73,18 @@ PORT=15191
 
 # Пути к данным
 UPLOAD_DIR=/opt/dix/aspic/data/files
+PREVIEW_DIR=/opt/dix/aspic/data/preview
 DB_PATH=/opt/dix/aspic/data/aspic.db
 
-# Ограничения
-MAX_FILE_SIZE=104857600         # 100 MB
+# Время жизни временных файлов (1 час)
+PREVIEW_TTL_SECONDS=3600
+
+# Ограничения (104857600 = 100 MB)
+MAX_FILE_SIZE=104857600
 TOKEN_LENGTH=8
-ALLOWED_MIMES=image/jpeg,image/png,image/gif,image/webp,application/pdf,video/mp4,video/webm,text/plain
+
+# ВСЕ поддерживаемые MIME-типы (изображения, видео, аудио, документы, архивы, код)
+ALLOWED_MIMES=image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml,image/bmp,image/tiff,image/x-icon,image/heic,image/avif,video/mp4,video/webm,video/ogg,video/quicktime,video/x-msvideo,video/x-matroska,video/mpeg,video/3gpp,audio/mpeg,audio/ogg,audio/wav,audio/aac,audio/flac,audio/mp4,audio/x-midi,application/pdf,text/plain,text/html,text/css,text/javascript,text/markdown,text/csv,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/rtf,application/json,application/xml,application/x-yaml,text/x-python,text/x-sql,application/zip,application/x-zip-compressed,application/x-rar-compressed,application/x-7z-compressed,application/x-tar,application/gzip
 
 # Rate limiting
 RATE_LIMIT_UPLOAD=5/minute
@@ -101,8 +127,6 @@ services:
 ```
 
 ## 🌐 Настройка Nginx (reverse proxy)
-
-Если вы хотите проксировать ASPIC через Nginx (например, для использования с доменом и SSL), используйте следующую конфигурацию:
 
 ```nginx
 server {
@@ -147,11 +171,11 @@ server {
     }
 
     # Если хотите, чтобы статику раздавал Nginx (быстрее)
-    # location /static/ {
-    #     alias /opt/dix/aspic/app/static/;
-    #     expires 30d;
-    #     access_log off;
-    # }
+    location /static/ {
+        alias /opt/dix/aspic/app/static/;
+        expires 30d;
+        access_log off;
+    }
 }
 ```
 
@@ -175,10 +199,14 @@ source venv/bin/activate
 # 3. Установить зависимости
 pip install -r requirements.txt
 
-# 4. Создать папку для данных
-mkdir -p data/files
+# 4. Создать папки для данных
+mkdir -p data/files data/preview
 
-# 5. Запустить
+# 5. Настроить .env (скопировать из примера)
+cp .env.example .env
+# Отредактировать .env под свои нужды
+
+# 6. Запустить
 python -m app.main
 ```
 
@@ -186,12 +214,33 @@ python -m app.main
 
 | Метод | Эндпоинт | Описание |
 |-------|----------|----------|
-| `POST` | `/api/upload` | Загрузить файл |
-| `GET` | `/v/{token}` | Страница просмотра файла |
+| `POST` | `/api/upload` | Загрузить файл (без предпросмотра) |
+| `POST` | `/api/preview` | Загрузить файл для предпросмотра |
+| `POST` | `/api/confirm-upload` | Подтвердить загрузку (создать постоянную ссылку) |
+| `GET` | `/v/{token}` | Страница просмотра файла с комментариями |
+| `GET` | `/preview-file/{token}` | Прямая ссылка на файл (для встраивания) |
 | `GET` | `/d/{token}` | Скачать файл |
+| `GET` | `/api/file/{token}` | Получить информацию о файле в JSON |
+| `GET` | `/api/comments/{token}` | Получить комментарии к файлу |
+| `GET` | `/api/captcha/{token}` | Получить капчу для удаления |
 | `POST` | `/v/{token}/comment` | Добавить комментарий |
 | `POST` | `/v/{token}/delete` | Удалить файл (с капчей) |
 
+## 🧹 Очистка удаленных файлов
+
+Файлы помечаются как удаленные, но физически не удаляются с диска. Для физического удаления запустите:
+
+```bash
+python app/cleanup.py
+```
+
+Можно добавить в cron для автоматической очистки:
+
+```bash
+# Очистка каждый день в 3 часа ночи
+0 3 * * * cd /opt/dix/aspic && /opt/dix/aspic/.venv/bin/python app/cleanup.py >> /var/log/aspic-cleanup.log 2>&1
+```
+
 ---
 
-**ASPIC** — файлы живут «вечно», пока кто-то не нажмёт «Удалить».
+**ASPIC** — файлы живут «вечно», пока кто-то не нажмёт «Удалить»

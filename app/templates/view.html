@@ -2,242 +2,308 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} — ASPIC</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>ASPIC — {{ file.filename }}</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='80' font-size='80' text-anchor='middle' font-family='Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif'%3E📦%3C/text%3E%3C/svg%3E" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>📦 ASPIC</h1>
-            <a href="/" class="back-link">← Загрузить новый файл</a>
+        <header class="app-header compact">
+            <div class="header-content">
+                <h1 class="app-title">📦 ASPIC</h1>
+                <nav class="app-nav">
+                    <a href="/" class="btn btn-small">
+                        <span class="btn-icon">📁</span>
+                        <span class="btn-text">Загрузить</span>
+                    </a>
+                </nav>
+            </div>
         </header>
 
-        {% if deleted %}
-            <!-- Файл удалён -->
-            <div class="deleted-container">
-                <div class="deleted-icon">🗑️</div>
-                <h2>Файл был удалён</h2>
-                <p>Этот файл больше не доступен</p>
-                <a href="/" class="button">Загрузить другой файл</a>
-            </div>
-        {% else %}
-            <!-- Просмотр файла -->
-            <div class="file-container">
-                <div class="file-header">
-                    <h2>{{ file.filename }}</h2>
-                    <p class="file-meta">
-                        {{ (file.size / 1024 / 1024) | round(2) }} MB · 
-                        {{ file.created_at.strftime('%d.%m.%Y %H:%M') }}
-                    </p>
-                </div>
-
-                <!-- Предпросмотр файла -->
+        <main class="app-main">
+            <!-- Карточка файла -->
+            <div class="file-card">
+                <!-- Предпросмотр -->
                 <div class="preview-container">
-                    {% if file.preview_type == 'image' %}
-                        <img src="/d/{{ file.token }}" class="preview-image" alt="{{ file.filename }}">
-                    
-                    {% elif file.preview_type == 'pdf' %}
-                        <embed src="/d/{{ file.token }}" type="application/pdf" class="preview-pdf">
-                    
-                    {% elif file.preview_type == 'video' %}
+                    {% if file.mime_type.startswith('image/') %}
+                        <img src="/s/{{ file.token }}" alt="{{ file.filename }}" class="preview-image">
+                    {% elif file.mime_type == 'application/pdf' %}
+                        <iframe src="/s/{{ file.token }}" class="preview-iframe"></iframe>
+                    {% elif file.mime_type.startswith('video/') %}
                         <video controls class="preview-video">
-                            <source src="/d/{{ file.token }}" type="{{ file.mime_type }}">
+                            <source src="/s/{{ file.token }}" type="{{ file.mime_type }}">
                         </video>
-                    
-                    {% elif file.preview_type == 'audio' %}
+                    {% elif file.mime_type.startswith('audio/') %}
                         <audio controls class="preview-audio">
-                            <source src="/d/{{ file.token }}" type="{{ file.mime_type }}">
+                            <source src="/s/{{ file.token }}" type="{{ file.mime_type }}">
                         </audio>
-                    
-                    {% elif file.preview_type == 'text' %}
-                        <div class="preview-text-container">
-                            <iframe src="/d/{{ file.token }}" class="preview-text-iframe"></iframe>
-                        </div>
-
+                    {% elif file.mime_type.startswith('text/') %}
+                        <iframe src="/s/{{ file.token }}" class="preview-iframe"></iframe>
                     {% else %}
                         <div class="preview-placeholder">
-                            <div class="placeholder-icon">📄</div>
                             <p>Предпросмотр недоступен</p>
                         </div>
                     {% endif %}
                 </div>
 
-                <!-- Кнопка скачивания -->
-                <div class="download-section">
-                    <a href="/d/{{ file.token }}" class="download-btn" download>⬇️ Скачать файл</a>
+                <!-- Имя файла (компактно) -->
+                <div class="filename-container">
+                    <span class="file-icon-small">{{ get_file_icon(file.mime_type) }}</span>
+                    <h2 class="file-title-mobile">{{ file.filename }}</h2>
                 </div>
 
-                <!-- Секция удаления -->
-                <div class="delete-section">
-                    <h3>Удалить файл</h3>
-                    <p class="delete-warning">Внимание: после удаления файл станет недоступен для всех</p>
+                <!-- КНОПКИ ДЕЙСТВИЙ -->
+                <div class="action-buttons">
+                    <!-- На десктопе: все в ряд -->
+                    <!-- На мобильных: Скачать на всю ширину сверху, остальные в ряд снизу -->
+                    <a href="/d/{{ file.token }}" class="btn btn-primary btn-download" download>
+                        <span class="btn-icon">📥</span>
+                        <span class="btn-text">Скачать файл</span>
+                    </a>
 
-                    <!-- Кнопка "Удалить" (изначально видна) -->
-                    <button class="delete-btn" id="showDeleteFormBtn">🗑️ Удалить файл</button>
+                    <div class="action-row-mobile">
+                        <button class="btn btn-secondary btn-link-mobile" onclick="copyToClipboard('{{ page_url }}', this, 'page')">
+                            <span class="btn-icon">📋</span>
+                            <span class="btn-text">Ссылка</span>
+                        </button>
 
-                    <!-- Форма удаления с капчей (изначально скрыта) -->
-                    <div class="delete-form-container" id="deleteFormContainer" style="display: none;">
-                        <div class="delete-form">
-                            <div class="captcha-question" id="captchaQuestion">{{ captcha.question }}</div>
-                            <input type="text" id="captchaAnswer" placeholder="Ответ">
-                            <input type="text" id="deleteReason" placeholder="Причина удаления (необязательно)">
-                            <button class="delete-confirm-btn" onclick="deleteFile('{{ file.token }}')">🗑️ Подтвердить удаление</button>
-                            <button class="delete-cancel-btn" onclick="hideDeleteForm()">Отмена</button>
-                        </div>
-                        <div class="delete-error" id="deleteError"></div>
+                        <button class="btn btn-icon-only" onclick="copyToClipboard('{{ request.url.scheme }}://{{ request.url.netloc }}/s/{{ file.token }}', this, 'file')" title="Копировать ссылку на файл">
+                            🔗
+                        </button>
                     </div>
                 </div>
 
-                <!-- Комментарии -->
-                <div class="comments-section">
-                    <h3>Комментарии</h3>
-
-                    <!-- Форма добавления комментария -->
-                    <div class="comment-form">
-                        <input type="text" id="commentAuthor" placeholder="Ваше имя (необязательно)" value="Аноним">
-                        <textarea id="commentText" placeholder="Напишите комментарий..." rows="3"></textarea>
-                        <button class="comment-btn" onclick="addComment('{{ file.token }}')">Отправить</button>
+                <!-- ИНФОРМАЦИЯ О ФАЙЛЕ (компактная) -->
+                <div class="file-stats">
+                    <div class="stat-row">
+                        <span class="stat-label">Тип:</span>
+                        <span class="stat-value">{{ get_file_type_name(file.mime_type) }}</span>
                     </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Размер:</span>
+                        <span class="stat-value">{{ format_file_size(file.size) }}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Загружен:</span>
+                        <span class="stat-value">{{ file.upload_date[:10] }}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Просмотров:</span>
+                        <span class="stat-value">{{ file.views }}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Скачиваний:</span>
+                        <span class="stat-value">{{ file.downloads }}</span>
+                    </div>
+                </div>
 
-                    <!-- Список комментариев -->
-                    <div class="comments-list" id="commentsList">
+                {% if extra_info and extra_info.image %}
+                <div class="file-stats">
+                    <div class="stat-row">
+                        <span class="stat-label">Размеры:</span>
+                        <span class="stat-value">{{ extra_info.image.dimensions }}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Формат:</span>
+                        <span class="stat-value">{{ extra_info.image.format }}</span>
+                    </div>
+                    {% if extra_info.image.megapixels %}
+                    <div class="stat-row">
+                        <span class="stat-label">Мп:</span>
+                        <span class="stat-value">{{ extra_info.image.megapixels }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Комментарии -->
+            <div class="comments-section">
+                <h3>💬 Комментарии</h3>
+
+                <div class="comments-list">
+                    {% if comments %}
                         {% for comment in comments %}
-                            <div class="comment-item">
+                            <div class="comment {% if comment.type == 'deletion_reason' %}deletion-reason{% endif %}">
                                 <div class="comment-header">
-                                    <span class="comment-author">{{ comment.author_name }}</span>
-                                    <span class="comment-date">{{ comment.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                                    <span class="comment-author">{{ comment.author }}</span>
+                                    <span class="comment-date">{{ comment.date }}</span>
+                                    {% if comment.type == 'deletion_reason' %}
+                                        <span class="comment-type-badge">🗑️</span>
+                                    {% endif %}
                                 </div>
-                                <div class="comment-content">{{ comment.content }}</div>
+                                <div class="comment-text">{{ comment.text }}</div>
                             </div>
-                        {% else %}
-                            <p class="no-comments">Пока нет комментариев. Будьте первым!</p>
                         {% endfor %}
-                    </div>
+                    {% else %}
+                        <p class="no-comments">Пока нет комментариев</p>
+                    {% endif %}
+                </div>
+
+                <div class="comment-form-wrapper">
+                    <h4 class="comment-form-title">➕ Добавить комментарий</h4>
+
+                    <form method="post" action="/v/{{ file.token }}/comment" class="comment-form">
+                        <div class="form-group">
+                            <label for="comment_author">Ваше имя:</label>
+                            <input type="text"
+                                   name="author"
+                                   id="comment_author"
+                                   class="author-input"
+                                   value="{{ user_id }}"
+                                   placeholder="Имя"
+                                   maxlength="50">
+                            <small class="form-hint">по умолчанию: ЗЛОБНЫЙ_АНОНИМ</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="comment_text">Комментарий:</label>
+                            <textarea name="comment"
+                                      id="comment_text"
+                                      placeholder="Ваш комментарий..."
+                                      required
+                                      class="comment-input"
+                                      rows="3"></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-mobile">
+                            <span class="btn-icon">💬</span>
+                            <span class="btn-text">Отправить</span>
+                        </button>
+                    </form>
                 </div>
             </div>
-        {% endif %}
 
-        <footer>
-            <p>ASPIC — файлы живут вечно, пока кто-то не нажмёт «Удалить»</p>
+            <!-- Удаление -->
+            <div class="delete-section">
+                <h3>⚠️ Удалить</h3>
+                <p class="delete-warning">Действие необратимо</p>
+
+                <form method="post" action="/v/{{ file.token }}/delete" class="delete-form" onsubmit="return confirm('Удалить файл?')">
+                    <input type="hidden" name="captcha_key" value="{{ captcha.key }}">
+
+                    <div class="form-group">
+                        <label for="delete_author">Ваше имя:</label>
+                        <input type="text"
+                               name="author"
+                               id="delete_author"
+                               class="author-input"
+                               value="{{ user_id }}"
+                               placeholder="Имя"
+                               maxlength="50">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="delete_reason">Причина:</label>
+                        <textarea name="delete_reason"
+                                  id="delete_reason"
+                                  class="delete-reason-input"
+                                  placeholder="Например: больше не нужен..."
+                                  rows="2"
+                                  required></textarea>
+                    </div>
+
+                    <div class="captcha-question">
+                        <label>Решите: <strong>{{ captcha.question }}</strong></label>
+                    </div>
+
+                    <div class="captcha-answer">
+                        <input type="text" name="captcha_answer" placeholder="Ответ" required class="captcha-input">
+                    </div>
+
+                    <button type="submit" class="btn btn-danger btn-mobile">
+                        <span class="btn-icon">🗑️</span>
+                        <span class="btn-text">Удалить</span>
+                    </button>
+                </form>
+            </div>
+        </main>
+
+        <footer class="app-footer">
+            <p>📦 ASPIC · <a href="https://github.com/dneupokoev/aspic" target="_blank">GitHub</a></p>
         </footer>
     </div>
 
-    <script src="/static/js/upload.js"></script>
     <script>
-        // Функция добавления комментария
-        async function addComment(token) {
-            const author = document.getElementById('commentAuthor').value || 'Аноним';
-            const content = document.getElementById('commentText').value;
-
-            if (!content.trim()) {
-                alert('Введите текст комментария');
-                return;
+        function copyToClipboard(text, button, type = 'page') {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showCopyFeedback(button, type);
+                }).catch(() => {
+                    fallbackCopy(text, button, type);
+                });
+            } else {
+                fallbackCopy(text, button, type);
             }
+        }
 
-            const formData = new FormData();
-            formData.append('author_name', author);
-            formData.append('content', content);
+        function fallbackCopy(text, button, type) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            textarea.setSelectionRange(0, 99999);
 
             try {
-                const response = await fetch(`/v/${token}/comment`, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    throw new Error('Ошибка при добавлении комментария');
+                const success = document.execCommand('copy');
+                if (success) {
+                    showCopyFeedback(button, type);
+                } else {
+                    showCopyFeedback(button, type, true);
                 }
-
-                location.reload();
-            } catch (error) {
-                alert(error.message);
-            }
-        }
-
-        // Функции для работы с удалением
-        document.getElementById('showDeleteFormBtn')?.addEventListener('click', function() {
-            document.getElementById('deleteFormContainer').style.display = 'block';
-            this.style.display = 'none';
-        });
-
-        function hideDeleteForm() {
-            document.getElementById('deleteFormContainer').style.display = 'none';
-            document.getElementById('showDeleteFormBtn').style.display = 'block';
-            document.getElementById('deleteError').textContent = '';
-        }
-
-        async function deleteFile(token) {
-            const captcha = document.getElementById('captchaAnswer').value;
-            const reason = document.getElementById('deleteReason').value;
-
-            if (!captcha.trim()) {
-                document.getElementById('deleteError').textContent = 'Введите ответ на капчу';
-                return;
+            } catch (err) {
+                showCopyFeedback(button, type, true);
             }
 
-            const formData = new FormData();
-            formData.append('captcha', captcha);
-            formData.append('reason', reason);
+            document.body.removeChild(textarea);
+        }
 
-            try {
-                const response = await fetch(`/v/${token}/delete`, {
-                    method: 'POST',
-                    body: formData
-                });
+        function showCopyFeedback(button, type, isError = false) {
+            const originalText = button.textContent;
+            const originalHtml = button.innerHTML;
 
-                if (!response.ok) {
-                    const data = await response.json();
-                    throw new Error(data.detail || 'Ошибка при удалении');
+            if (isError) {
+                button.textContent = '❌';
+            } else {
+                if (type === 'page') {
+                    button.textContent = '✅ Готово!';
+                } else {
+                    button.innerHTML = '✅';
                 }
-
-                location.reload();
-            } catch (error) {
-                document.getElementById('deleteError').textContent = error.message;
-                // Обновляем капчу (перезагружаем страницу)
-                location.reload();
             }
+
+            button.disabled = true;
+
+            setTimeout(() => {
+                if (type === 'file') {
+                    button.innerHTML = originalHtml;
+                } else {
+                    button.textContent = originalText;
+                }
+                button.disabled = false;
+            }, 1500);
         }
-    </script>
-    <script>
-        // Обработка вставки из буфера на странице просмотра
-        document.addEventListener('paste', async function(e) {
-            if (!window.location.pathname.startsWith('/v/')) return;
 
-            const items = e.clipboardData.items;
+        document.addEventListener('DOMContentLoaded', function() {
+            const authorInputs = document.querySelectorAll('input[name="author"]');
+            const savedAuthor = localStorage.getItem('aspic_author');
 
-            for (let i = 0; i < items.length; i++) {
-                if (items[i].type.indexOf('image') !== -1) {
-                    if (confirm('Вставить изображение из буфера как новый файл?')) {
-                        const file = items[i].getAsFile();
-                        const now = new Date();
-                        const timestamp = now.toISOString()
-                            .replace(/[-:]/g, '')
-                            .replace(/\..+/, '')
-                            .replace('T', '_');
-                        const filename = `clipboard_${timestamp}.png`;
+            if (savedAuthor) {
+                authorInputs.forEach(input => {
+                    input.value = savedAuthor;
+                });
+            }
 
-                        const newFile = new File([file], filename, { type: file.type });
-                        const formData = new FormData();
-                        formData.append('file', newFile);
-
-                        try {
-                            const response = await fetch('/api/upload', {
-                                method: 'POST',
-                                body: formData
-                            });
-
-                            if (response.ok) {
-                                const data = await response.json();
-                                alert(`Файл загружен! Ссылка: ${window.location.origin}${data.url}`);
-                            }
-                        } catch (error) {
-                            alert('Ошибка загрузки');
-                        }
+            authorInputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    if (this.value && this.value.trim()) {
+                        localStorage.setItem('aspic_author', this.value.trim());
                     }
-                    break;
-                }
-            }
+                });
+            });
         });
     </script>
 </body>
