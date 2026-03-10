@@ -32,7 +32,7 @@ https://aspic.example.com/v/{token}?access_id={id}
 
 #### 4. Логика открытия файла (`GET /v/{token}`)
 
-```
+```python
 if file.webhook_url:
     # Проверяем наличие access_id в query-параметрах
     if not access_id:
