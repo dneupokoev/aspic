@@ -110,7 +110,7 @@ app = FastAPI(
     debug=DEBUG,
     title="ASPIC",
     description="A Simple Public Image/File Cloud — минималистичный файловый хостинг с комментариями",
-    version="1.0.0",
+    version="0.1.0",
     lifespan=lifespan,
     openapi_url="/openapi.json"
 )
