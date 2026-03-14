@@ -532,6 +532,7 @@ async def confirm_upload(
     filename = data.get("filename", "file")
     mime_type = data.get("mime_type", "application/octet-stream")
     size = data.get("size", 0)
+    text_content = data.get("text_content")  # редактируемый текст
 
     if not preview_id:
         raise HTTPException(status_code=400, detail="preview_id обязателен")
@@ -549,8 +550,18 @@ async def confirm_upload(
     permanent_path = get_dated_upload_path(permanent_filename)
 
     try:
-        shutil.move(str(temp_path), str(permanent_path))
-        print(f"✅ Файл перемещен: {temp_path} -> {permanent_path}")
+        # ✅ Если передан редактируемый текст - записываем его вместо файла
+        if text_content is not None and mime_type.startswith('text/'):
+            file_content = text_content.encode('utf-8')
+            async with aiofiles.open(str(permanent_path), 'wb') as f:
+                await f.write(file_content)
+            # Обновляем размер файла
+            size = len(file_content)
+            print(f"✅ Файл создан из редактированного текста: {permanent_path}")
+        else:
+            # ✅ Обычное перемещение файла
+            shutil.move(str(temp_path), str(permanent_path))
+            print(f"✅ Файл перемещен: {temp_path} -> {permanent_path}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении файла: {e}")
 
@@ -559,7 +570,7 @@ async def confirm_upload(
             token=token,
             filename=filename,
             mime_type=mime_type,
-            size=size,
+            size=size,  # ✅ Размер обновлён если текст редактировался
             file_path=str(permanent_path)
         )
         print(f"💾 Метаданные сохранены для токена: {token}")

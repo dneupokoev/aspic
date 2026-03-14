@@ -3,9 +3,10 @@
 **ASPIC** — это минималистичный файловый хостинг с возможностью комментирования и удаления файлов через капчу.  
 Никакой регистрации, никаких владельцев, никаких сроков хранения.
 
-## 🚀 Возможности
+## ✨ Возможности
 
 - ✅ Загрузка файлов через **drag-and-drop**, **выбор файла** или **вставку из буфера** (Ctrl+V)
+- ✅ **Редактирование текста** перед загрузкой при вставке из буфера обмена
 - ✅ Поддержка **всех популярных форматов**: изображения, видео, аудио, документы, архивы, код
 - ✅ Получение **вечной ссылки** на файл
 - ✅ **Предпросмотр** изображений, PDF, видео, аудио и текста прямо в браузере
@@ -21,9 +22,31 @@
 - ✅ Гибкая настройка через `.env`
 - ✅ Готов к запуску в **Docker**
 
-## 🧱 Технологии
+## 📋 Примеры использования
 
-- **Python 3.12** + **FastAPI** — современный асинхронный фреймворк
+### Загрузка файла
+1. Перетащите файл в область загрузки
+2. Или нажмите «Выбрать файл»
+3. Или скопируйте изображение/текст и нажмите «Вставить из буфера» (Ctrl+V)
+4. При вставке текста вы можете отредактировать его перед созданием ссылки
+5. Нажмите «Создать ссылку»
+
+### Просмотр файла
+- Откройте ссылку на файл
+- Просматривайте содержимое прямо в браузере
+- Оставляйте комментарии
+- Скачивайте файл при необходимости
+
+### Удаление файла
+- Откройте страницу файла
+- Нажмите «Удалить»
+- Введите капчу и причину удаления
+- Подтвердите удаление
+
+## 🛠 Технологии
+
+- **Python 3.12**+
+- **FastAPI** — современный асинхронный фреймворк
 - **SQLite** (с WAL-режимом) — легковесная база данных
 - **aiosqlite** — асинхронная работа с SQLite
 - **Jinja2** — шаблонизатор
@@ -58,7 +81,9 @@ aspic/
 └── README.md
 ```
 
-## ⚙️ Конфигурация (`.env`)
+## ⚙️ Настройка
+
+Пример `.env`:
 
 ```env
 # Режим отладки
@@ -92,7 +117,9 @@ RATE_LIMIT_DELETE=2/minute
 CAPTCHA_TTL_SECONDS=300
 ```
 
-## 🐳 Запуск через Docker
+## 🚀 Установка
+
+### Через Docker
 
 ```bash
 # Сборка образа
@@ -110,7 +137,6 @@ docker run -d \
 
 ```yaml
 version: '3.8'
-
 services:
   aspic:
     build: .
@@ -123,66 +149,7 @@ services:
     restart: unless-stopped
 ```
 
-## 🌐 Настройка Nginx (reverse proxy)
-
-```nginx
-server {
-    listen 80;
-    server_name aspic.example.com;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name aspic.example.com;
-
-    # SSL-сертификаты (пример для Let's Encrypt)
-    ssl_certificate /etc/letsencrypt/live/aspic.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/aspic.example.com/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
-    # Максимальный размер загружаемого файла
-    client_max_body_size 500M;
-
-    # Заголовки безопасности
-    add_header X-Content-Type-Options "nosniff";
-    add_header X-Frame-Options "SAMEORIGIN";
-    add_header X-XSS-Protection "1; mode=block";
-
-    location / {
-        proxy_pass http://127.0.0.1:15191;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # ВАЖНО: убираем заголовок Content-Disposition,
-        # чтобы текстовые файлы открывались в браузере, а не скачивались
-        proxy_hide_header Content-Disposition;
-
-        # Увеличиваем таймауты для больших файлов
-        proxy_connect_timeout 3600s;
-        proxy_send_timeout 3600s;
-        proxy_read_timeout 3600s;
-    }
-
-    # Если хотите, чтобы статику раздавал Nginx (быстрее)
-    location /static/ {
-        alias /opt/dix/aspic/app/static/;
-        expires 30d;
-        access_log off;
-    }
-}
-```
-
-### 🔑 Ключевые моменты:
-
-1. **`proxy_hide_header Content-Disposition;`** — обязательная директива, чтобы текстовые файлы открывались в браузере, а не скачивались
-2. **`client_max_body_size 500M;`** — должен быть не меньше, чем `MAX_FILE_SIZE` в `.env`
-3. **Таймауты** увеличены для поддержки больших файлов
-
-## 🧪 Локальный запуск
+### Напрямую
 
 ```bash
 # 1. Клонировать репозиторий
@@ -207,7 +174,69 @@ cp .env.example .env
 python -m app.main
 ```
 
-## 📡 API Endpoints
+## 🔧 Nginx конфигурация
+
+Пример конфигурации для Nginx с HTTPS:
+
+```nginx
+# HTTP -> HTTPS redirect
+server {
+    listen 80;
+    server_name aspic.example.com;
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS server
+server {
+    listen 443 ssl http2;
+    server_name aspic.example.com;
+    
+    # SSL-сертификаты (пример для Let's Encrypt)
+    ssl_certificate /etc/letsencrypt/live/aspic.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/aspic.example.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    
+    # Максимальный размер загружаемого файла
+    client_max_body_size 500M;
+    
+    # Заголовки безопасности
+    add_header X-Content-Type-Options "nosniff";
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-XSS-Protection "1; mode=block";
+    
+    location / {
+        proxy_pass http://127.0.0.1:15191;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # ВАЖНО: убираем заголовок Content-Disposition,
+        # чтобы текстовые файлы открывались в браузере, а не скачивались
+        proxy_hide_header Content-Disposition;
+        
+        # Увеличиваем таймауты для больших файлов
+        proxy_connect_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_read_timeout 3600s;
+    }
+    
+    # Если хотите, чтобы статику раздавал Nginx (быстрее)
+    location /static/ {
+        alias /opt/dix/aspic/app/static/;
+        expires 30d;
+        access_log off;
+    }
+}
+```
+
+**Важные моменты:**
+- `proxy_hide_header Content-Disposition;` — позволяет текстовым файлам открываться в браузере
+- `client_max_body_size 500M;` — максимальный размер загружаемого файла (должен соответствовать `MAX_FILE_SIZE` в `.env`)
+- Таймауты увеличены для поддержки больших файлов
+
+## 📡 API
 
 | Метод | Эндпоинт | Описание |
 |-------|----------|----------|
@@ -238,6 +267,6 @@ python app/cleanup.py
 0 3 * * * cd /opt/dix/aspic && /opt/dix/aspic/.venv/bin/python app/cleanup.py >> /var/log/aspic-cleanup.log 2>&1
 ```
 
----
+## 📝 Лицензия
 
 **ASPIC** — файлы живут «вечно», пока кто-то не нажмёт «Удалить»

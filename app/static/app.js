@@ -9,6 +9,8 @@ const State = {
 let currentState = State.UPLOAD;
 let currentPreviewId = null;
 let currentFileData = null;
+let isTextEditable = false;
+let originalTextContent = null;
 
 // DOM элементы
 const elements = {
@@ -98,6 +100,8 @@ function resetToUpload() {
     elements.fileInput.value = '';
     currentPreviewId = null;
     currentFileData = null;
+    isTextEditable = false;
+    originalTextContent = null;
     elements.previewContainer.innerHTML = '<div class="preview-placeholder">Выберите файл для предпросмотра</div>';
 }
 
@@ -242,7 +246,7 @@ async function handlePaste(event) {
         const fileName = `clipboard_text_${new Date().toISOString().slice(0,19).replace(/[-:]/g, '')}.txt`;
         const textBlob = new Blob([textFromClipboard], { type: 'text/plain' });
         const textFile = new File([textBlob], fileName, { type: 'text/plain' });
-        uploadForPreview(textFile);
+        uploadForPreview(textFile, textFromClipboard);
         return;
     }
 
@@ -285,7 +289,7 @@ async function activatePaste() {
             const fileName = `clipboard_text_${new Date().toISOString().slice(0,19).replace(/[-:]/g, '')}.txt`;
             const textBlob = new Blob([textFromClipboard], { type: 'text/plain' });
             const textFile = new File([textBlob], fileName, { type: 'text/plain' });
-            uploadForPreview(textFile);
+            uploadForPreview(textFile, textFromClipboard);
             return;
         }
 
@@ -301,7 +305,7 @@ async function activatePaste() {
 // ОСНОВНЫЕ ФУНКЦИИ
 // ============================================
 
-async function uploadForPreview(file) {
+async function uploadForPreview(file, textContent = null) {
     if (!file) return;
     hideErrorMessage();
 
@@ -337,34 +341,46 @@ async function uploadForPreview(file) {
         elements.previewType.textContent = getFileTypeName(data.mime_type);
         elements.previewIcon.textContent = data.icon || '📄';
 
-        let previewHtml = '';
-
-        if (data.mime_type.startsWith('image/')) {
-            previewHtml = `<img src="${data.preview_url}" alt="preview" class="preview-image">`;
-        } else if (data.mime_type === 'application/pdf') {
-            previewHtml = `<iframe src="${data.preview_url}" class="preview-iframe"></iframe>`;
-        } else if (data.mime_type.startsWith('video/')) {
-            previewHtml = `
-                <video controls class="preview-video">
-                    <source src="${data.preview_url}" type="${data.mime_type}">
-                </video>
+        // ✅ Если это текст из буфера - показываем textarea на всё поле
+        if (textContent !== null && data.mime_type.startsWith('text/')) {
+            isTextEditable = true;
+            originalTextContent = textContent;
+            elements.previewContainer.innerHTML = `
+                <textarea class="text-editor-area" placeholder="Редактируйте текст..." spellcheck="false">${textContent}</textarea>
             `;
-        } else if (data.mime_type.startsWith('audio/')) {
-            previewHtml = `
-                <audio controls class="preview-audio">
-                    <source src="${data.preview_url}" type="${data.mime_type}">
-                </audio>
-            `;
-        } else if (data.mime_type.startsWith('text/')) {
-            previewHtml = `<iframe src="${data.preview_url}" class="preview-iframe"></iframe>`;
         } else {
-            previewHtml = `<div class="preview-unsupported">
-                <p>Предпросмотр недоступен</p>
-                <p class="file-detail">Тип: ${data.mime_type}</p>
-            </div>`;
-        }
+            // ✅ Обычный предпросмотр
+            isTextEditable = false;
+            originalTextContent = null;
+            let previewHtml = '';
 
-        elements.previewContainer.innerHTML = previewHtml;
+            if (data.mime_type.startsWith('image/')) {
+                previewHtml = `<img src="${data.preview_url}" alt="preview" class="preview-image">`;
+            } else if (data.mime_type === 'application/pdf') {
+                previewHtml = `<iframe src="${data.preview_url}" class="preview-iframe"></iframe>`;
+            } else if (data.mime_type.startsWith('video/')) {
+                previewHtml = `
+                    <video controls class="preview-video">
+                        <source src="${data.preview_url}" type="${data.mime_type}">
+                    </video>
+                `;
+            } else if (data.mime_type.startsWith('audio/')) {
+                previewHtml = `
+                    <audio controls class="preview-audio">
+                        <source src="${data.preview_url}" type="${data.mime_type}">
+                    </audio>
+                `;
+            } else if (data.mime_type.startsWith('text/')) {
+                previewHtml = `<iframe src="${data.preview_url}" class="preview-iframe"></iframe>`;
+            } else {
+                previewHtml = `<div class="preview-unsupported">
+                    <p>Предпросмотр недоступен</p>
+                    <p class="file-detail">Тип: ${data.mime_type}</p>
+                </div>`;
+            }
+
+            elements.previewContainer.innerHTML = previewHtml;
+        }
 
     } catch (error) {
         console.error('Preview error:', error);
@@ -383,15 +399,26 @@ async function confirmUpload() {
     setLoading(true);
 
     try {
+        const requestBody = {
+            preview_id: currentPreviewId,
+            filename: currentFileData.filename,
+            mime_type: currentFileData.mime_type,
+            size: currentFileData.size
+        };
+
+        // ✅ Если текст редактируемый - отправляем изменённое содержимое
+        if (isTextEditable && originalTextContent !== null) {
+            const textarea = elements.previewContainer.querySelector('.text-editor-area');
+            if (textarea) {
+                const editedText = textarea.value;
+                requestBody.text_content = editedText;
+            }
+        }
+
         const response = await fetch('/api/confirm-upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                preview_id: currentPreviewId,
-                filename: currentFileData.filename,
-                mime_type: currentFileData.mime_type,
-                size: currentFileData.size
-            }),
+            body: JSON.stringify(requestBody),
             credentials: 'same-origin'
         });
 
