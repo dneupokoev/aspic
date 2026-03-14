@@ -20,12 +20,12 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import aiofiles
 
-# Импорты из ваших модулей
 from app.database import (
     init_db, save_file_metadata, get_file_metadata,
     add_comment, get_comments, mark_file_as_deleted,
     get_deleted_files, permanently_delete_file,
-    increment_view_count, increment_download_count
+    increment_view_count, increment_download_count,
+    update_webhook_url, set_delete_password, verify_delete_password
 )
 from app.captcha import captcha_store
 from app.config import (
@@ -669,13 +669,32 @@ async def add_comment_to_file(
 ):
     file_info = await get_file_metadata(token)
     if not file_info:
-        raise HTTPException(status_code=404, detail="Файл не найден")
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Файл не найден"}
+        )
+
+    if file_info.get('deleted', False):
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Нельзя комментировать удаленный файл"}
+        )
 
     if not author or not author.strip():
         author = "ЗЛОБНЫЙ_АНОНИМ"
 
-    await add_comment(token, author.strip(), comment, 'comment')
-    return RedirectResponse(url=f"/v/{token}", status_code=303)
+    if not comment or not comment.strip():
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Комментарий не может быть пустым"}
+        )
+
+    await add_comment(token, author.strip(), comment.strip(), 'comment')
+
+    return JSONResponse(
+        status_code=200,
+        content={"status": "success"}
+    )
 
 
 # ============================================
@@ -689,28 +708,67 @@ async def delete_file(
         captcha_key: str = Form(...),
         captcha_answer: str = Form(...),
         delete_reason: str = Form(...),
-        author: str = Form(...)
+        author: str = Form(...),
+        delete_password_input: str = Form(None),
+        password_required: str = Form(None)
 ):
     client_ip = request.client.host
 
+    # Проверяем капчу
     if not captcha_store.verify(token, client_ip, captcha_answer):
-        raise HTTPException(status_code=400, detail="Неверный ответ капчи")
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Неверный ответ капчи"}
+        )
 
+    # Получаем информацию о файле
     file_info = await get_file_metadata(token, include_deleted=True)
     if not file_info:
-        raise HTTPException(status_code=404, detail="Файл не найден")
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Файл не найден"}
+        )
 
     if file_info.get('deleted', False):
-        raise HTTPException(status_code=400, detail="Файл уже удален")
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Файл уже удален"}
+        )
+
+    # Проверяем пароль
+    has_password = bool(file_info.get('delete_password'))
+
+    if has_password and not password_required:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Требуется ввести пароль для удаления"}
+        )
+
+    if has_password:
+        if not delete_password_input:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Требуется ввести пароль для удаления"}
+            )
+
+        if not await verify_delete_password(token, delete_password_input):
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Неверный пароль для удаления"}
+            )
 
     if not author or not author.strip():
         author = "ЗЛОБНЫЙ_АНОНИМ"
 
     if delete_reason and delete_reason.strip():
-        await add_comment(token, author.strip(), f"🗑️ Файл помечен как удаленный. Причина: {delete_reason}", 'deletion_reason')
+        await add_comment(token, author.strip(), f"Файл удален. Причина: {delete_reason}", 'deletion_reason')
 
     await mark_file_as_deleted(token, delete_reason)
-    return RedirectResponse(url="/?error=deleted", status_code=303)
+
+    return JSONResponse(
+        status_code=200,
+        content={"redirect": "/?error=deleted"}
+    )
 
 
 # ============================================

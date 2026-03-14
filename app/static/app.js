@@ -43,6 +43,16 @@ const elements = {
 // ============================================
 
 function hideErrorMessage() {
+    const clientError = document.getElementById('clientErrorMessage');
+    if (clientError) {
+        clientError.style.display = 'none';
+    }
+
+    const serverError = document.getElementById('serverErrorMessage');
+    if (serverError) {
+        serverError.style.display = 'none';
+    }
+
     if (elements.errorMessage) {
         elements.errorMessage.style.display = 'none';
     }
@@ -319,6 +329,45 @@ async function activatePaste() {
 }
 
 // ============================================
+// ФУНКЦИИ ДЛЯ ОБРАБОТКИ ОШИБОК
+// ============================================
+
+function showError(message, isRateLimit = false) {
+    // Используем новый элемент для клиентских ошибок
+    const errorDiv = document.getElementById('clientErrorMessage');
+    if (!errorDiv) return;
+
+    const errorText = document.getElementById('clientErrorText');
+    const errorIcon = document.getElementById('clientErrorIcon');
+
+    // Очищаем сообщение от эмодзи для отображения
+    let cleanMessage = message.replace(/[✅❌🔒⏳⚠️]/g, '').trim();
+
+    if (isRateLimit) {
+        errorIcon.textContent = '⏳';
+    } else if (message.includes('❌')) {
+        errorIcon.textContent = '❌';
+    } else if (message.includes('🔒')) {
+        errorIcon.textContent = '🔒';
+    } else {
+        errorIcon.textContent = '⚠️';
+    }
+
+    errorText.textContent = cleanMessage;
+    errorDiv.style.display = 'flex';
+
+    // Прокрутка к ошибке
+    errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Автоматически скрываем через 10 секунд
+    setTimeout(() => {
+        if (errorDiv.style.display === 'flex') {
+            errorDiv.style.display = 'none';
+        }
+    }, 10000);
+}
+
+// ============================================
 // ОСНОВНЫЕ ФУНКЦИИ
 // ============================================
 
@@ -329,7 +378,8 @@ async function uploadForPreview(file, textContent = null) {
     const formData = new FormData();
     formData.append('file', file);
 
-    setState(State.PREVIEW);
+    // НЕ переключаем состояние сразу, ждем ответ от сервера
+    // Просто показываем индикатор загрузки в текущем состоянии
     elements.previewContainer.innerHTML = '<div class="preview-placeholder">⏳ Загрузка предпросмотра...</div>';
 
     try {
@@ -341,17 +391,37 @@ async function uploadForPreview(file, textContent = null) {
 
         if (!response.ok) {
             let errorMsg = 'Ошибка загрузки';
-            try {
-                const errorData = await response.json();
-                errorMsg = errorData.detail || errorMsg;
-            } catch (e) {}
-            throw new Error(errorMsg);
+            let isRateLimit = false;
+
+            if (response.status === 429) {
+                errorMsg = '⏳ Слишком много попыток загрузки. Подождите 1 минуту.';
+                isRateLimit = true;
+            } else {
+                try {
+                    const errorData = await response.json();
+                    errorMsg = '❌ ' + (errorData.detail || 'Ошибка при загрузке файла');
+                } catch (e) {
+                    errorMsg = '❌ Ошибка при загрузке файла';
+                }
+            }
+
+            // Показываем ошибку и возвращаемся в состояние загрузки
+            showError(errorMsg, isRateLimit);
+
+            // Возвращаем исходное состояние загрузки
+            setState(State.UPLOAD);
+            elements.previewContainer.innerHTML = '<div class="preview-placeholder">Выберите файл для предпросмотра</div>';
+
+            return;
         }
 
         const data = await response.json();
 
         currentPreviewId = data.preview_id;
         currentFileData = data;
+
+        // Только после успешного ответа переключаемся в PREVIEW
+        setState(State.PREVIEW);
 
         elements.previewFilename.textContent = data.filename;
         elements.previewFilesize.textContent = data.size_formatted || formatFileSize(data.size);
@@ -364,7 +434,7 @@ async function uploadForPreview(file, textContent = null) {
         if (webhookField) webhookField.style.display = 'block';
         if (passwordField) passwordField.style.display = 'block';
 
-        // ✅ Если это текст из буфера - показываем textarea на всё поле
+        // Если это текст из буфера - показываем textarea на всё поле
         if (textContent !== null && data.mime_type.startsWith('text/')) {
             isTextEditable = true;
             originalTextContent = textContent;
@@ -372,7 +442,7 @@ async function uploadForPreview(file, textContent = null) {
                 <textarea class="text-editor-area" placeholder="Редактируйте текст..." spellcheck="false">${textContent}</textarea>
             `;
         } else {
-            // ✅ Обычный предпросмотр
+            // Обычный предпросмотр
             isTextEditable = false;
             originalTextContent = null;
             let previewHtml = '';
@@ -407,8 +477,11 @@ async function uploadForPreview(file, textContent = null) {
 
     } catch (error) {
         console.error('Preview error:', error);
-        alert('Ошибка при загрузке файла: ' + error.message);
-        resetToUpload();
+        showError('❌ Ошибка при загрузке файла: ' + error.message);
+
+        // Возвращаемся в состояние загрузки
+        setState(State.UPLOAD);
+        elements.previewContainer.innerHTML = '<div class="preview-placeholder">Выберите файл для предпросмотра</div>';
     }
 }
 
@@ -446,7 +519,7 @@ async function confirmUpload() {
             delete_password: deletePassword
         };
 
-        // ✅ Если текст редактируемый - отправляем изменённое содержимое
+        // Если текст редактируемый - отправляем изменённое содержимое
         if (isTextEditable && originalTextContent !== null) {
             const textarea = elements.previewContainer.querySelector('.text-editor-area');
             if (textarea) {
@@ -464,11 +537,21 @@ async function confirmUpload() {
 
         if (!response.ok) {
             let errorMsg = 'Ошибка сохранения';
-            try {
-                const errorData = await response.json();
-                errorMsg = errorData.detail || errorMsg;
-            } catch (e) {}
-            throw new Error(errorMsg);
+            let isRateLimit = false;
+
+            if (response.status === 429) {
+                errorMsg = '⏳ Слишком много попыток загрузки. Подождите 1 минуту.';
+                isRateLimit = true;
+            } else {
+                try {
+                    const errorData = await response.json();
+                    errorMsg = '❌ ' + (errorData.detail || 'Ошибка при сохранении');
+                } catch (e) {
+                    errorMsg = '❌ Ошибка при сохранении файла';
+                }
+            }
+
+            throw { message: errorMsg, isRateLimit };
         }
 
         const data = await response.json();
@@ -485,7 +568,8 @@ async function confirmUpload() {
 
     } catch (error) {
         console.error('Confirm error:', error);
-        alert('Ошибка при создании ссылки: ' + error.message);
+        showError(error.message || '❌ Ошибка при создании ссылки', error.isRateLimit);
+        // Остаемся в состоянии предпросмотра
     } finally {
         setLoading(false);
     }

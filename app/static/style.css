@@ -1775,3 +1775,317 @@ body {
         font-size: 0.8rem;
     }
 }
+
+
+
+/* ============================================
+   КАПЧА В ОДНУ СТРОКУ
+   ============================================ */
+
+.captcha-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.captcha-question {
+    margin-bottom: 0;
+    flex: 0 0 auto;
+}
+
+.captcha-question label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.captcha-question strong {
+    font-size: 1.2rem;
+    color: var(--primary);
+    background: white;
+    padding: 0.3rem 0.8rem;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--border);
+    display: inline-block;
+}
+
+.captcha-answer {
+    margin-bottom: 0;
+    flex: 1;
+}
+
+.captcha-input-compact {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius-sm);
+    font-family: inherit;
+    font-size: 0.95rem;
+    background: white;
+    height: 42px;
+}
+
+.captcha-input-compact:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+}
+
+/* ============================================
+   ПОЛЕ ДЛЯ ПАРОЛЯ ПРИ УДАЛЕНИИ
+   ============================================ */
+
+.password-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 0.5rem 0;
+    border-top: 1px dashed var(--danger);
+    border-bottom: 1px dashed var(--danger);
+    background: rgba(239, 71, 111, 0.05);
+    border-radius: var(--border-radius-sm);
+    flex-wrap: wrap;
+}
+
+.password-label {
+    flex: 0 0 auto;
+    padding-left: 0.5rem;
+}
+
+.password-label label {
+    font-weight: 600;
+    color: var(--danger);
+    white-space: nowrap;
+}
+
+.password-input {
+    flex: 1;
+    padding-right: 0.5rem;
+}
+
+.password-input-field {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--danger);
+    border-radius: var(--border-radius-sm);
+    font-family: inherit;
+    font-size: 0.95rem;
+    background: white;
+    height: 42px;
+}
+
+.password-input-field:focus {
+    outline: none;
+    border-color: var(--danger-dark);
+    box-shadow: 0 0 0 3px rgba(239, 71, 111, 0.2);
+}
+
+/* Тёмная тема */
+@media (prefers-color-scheme: dark) {
+    .captcha-question strong {
+        background: #2d2d2d;
+        color: #7b9cff;
+    }
+
+    .captcha-input-compact {
+        background: #363636;
+        color: white;
+        border-color: #404040;
+    }
+
+    .password-row {
+        background: rgba(239, 71, 111, 0.15);
+    }
+
+    .password-input-field {
+        background: #363636;
+        color: white;
+        border-color: #ff6b93;
+    }
+}
+
+/* Мобильная адаптация */
+@media (max-width: 768px) {
+    .captcha-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+
+    .captcha-question label {
+        white-space: normal;
+    }
+
+    .password-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+        padding: 0.75rem;
+    }
+
+    .password-label {
+        padding-left: 0;
+    }
+}
+
+
+/* ============================================
+   СТИЛИ ДЛЯ ОШИБОК И КУЛДАУНА
+   ============================================ */
+
+.error-field {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 3px rgba(239, 71, 111, 0.3) !important;
+    animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+    20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+.btn-danger:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-danger:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* Тёмная тема для ошибок */
+@media (prefers-color-scheme: dark) {
+    .error-field {
+        border-color: #ff6b93 !important;
+        box-shadow: 0 0 0 3px rgba(255, 107, 147, 0.3) !important;
+    }
+}
+
+
+
+/* ============================================
+   СТИЛИ ДЛЯ ОШИБОК И КУЛДАУНА
+   ============================================ */
+
+.error-field {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 3px rgba(239, 71, 111, 0.3) !important;
+    animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+    20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+.btn-danger:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-danger:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.error-message {
+    background: #fee;
+    border-left: 4px solid var(--danger);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: var(--border-radius-sm);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+    animation: slideDown 0.3s ease;
+}
+
+.error-icon {
+    font-size: 1.2rem;
+}
+
+.error-text {
+    flex: 1;
+    color: var(--dark);
+}
+
+.error-close {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: var(--gray);
+    padding: 0 0.5rem;
+}
+
+.error-close:hover {
+    color: var(--danger);
+}
+
+/* Тёмная тема */
+@media (prefers-color-scheme: dark) {
+    .error-field {
+        border-color: #ff6b93 !important;
+        box-shadow: 0 0 0 3px rgba(255, 107, 147, 0.3) !important;
+    }
+
+    .error-message {
+        background: #442222;
+        border-left-color: #ff8a8a;
+    }
+
+    .error-text {
+        color: #ff8a8a;
+    }
+}
+
+
+/* Стили для кнопок в состоянии кулдауна */
+.btn-primary:disabled,
+.btn-danger:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-primary:disabled:hover,
+.btn-danger:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* Анимация для ошибок */
+.error-field {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 3px rgba(239, 71, 111, 0.3) !important;
+    animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+    20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+/* Тёмная тема */
+@media (prefers-color-scheme: dark) {
+    .error-field {
+        border-color: #ff6b93 !important;
+        box-shadow: 0 0 0 3px rgba(255, 107, 147, 0.3) !important;
+    }
+}

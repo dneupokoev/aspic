@@ -15,13 +15,21 @@
         </header>
 
         <main class="app-main">
+            <!-- Сообщение об ошибке от сервера -->
             {% if error_message %}
-            <div class="error-message" id="errorMessage">
+            <div class="error-message" id="serverErrorMessage">
                 <span class="error-icon">ℹ️</span>
                 <span class="error-text">{{ error_message }}</span>
                 <button class="error-close" onclick="this.parentElement.style.display='none'">✕</button>
             </div>
             {% endif %}
+
+            <!-- Сообщение об ошибке от клиента (для rate limit и других ошибок) -->
+            <div id="clientErrorMessage" class="error-message" style="display: none;">
+                <span class="error-icon" id="clientErrorIcon">⚠️</span>
+                <span class="error-text" id="clientErrorText"></span>
+                <button class="error-close" onclick="document.getElementById('clientErrorMessage').style.display='none'">✕</button>
+            </div>
 
             <!-- СОСТОЯНИЕ 1: ЗАГРУЗКА ФАЙЛА -->
             <div id="state-upload" class="state visible">
