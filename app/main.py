@@ -533,6 +533,15 @@ async def confirm_upload(
     mime_type = data.get("mime_type", "application/octet-stream")
     size = data.get("size", 0)
     text_content = data.get("text_content")  # редактируемый текст
+    webhook_url = data.get("webhook_url", "")  # новое поле
+    delete_password = data.get("delete_password", "")  # новое поле
+
+    # Валидация полей
+    if webhook_url and (len(webhook_url) < 4 or len(webhook_url) > 1024):
+        raise HTTPException(status_code=400, detail="webhook_url должен быть от 4 до 1024 символов")
+
+    if delete_password and (len(delete_password) < 4 or len(delete_password) > 16):
+        raise HTTPException(status_code=400, detail="delete_password должен быть от 4 до 16 символов")
 
     if not preview_id:
         raise HTTPException(status_code=400, detail="preview_id обязателен")
@@ -570,8 +579,10 @@ async def confirm_upload(
             token=token,
             filename=filename,
             mime_type=mime_type,
-            size=size,  # ✅ Размер обновлён если текст редактировался
-            file_path=str(permanent_path)
+            size=size,
+            file_path=str(permanent_path),
+            webhook_url=webhook_url,
+            delete_password=delete_password
         )
         print(f"💾 Метаданные сохранены для токена: {token}")
     except Exception as e:

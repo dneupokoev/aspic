@@ -66,6 +66,56 @@
                     <div class="preview-placeholder">Загрузка предпросмотра...</div>
                 </div>
 
+                <!-- НОВЫЕ ПОЛЯ: Вебхук и Пароль для удаления (компактная версия) -->
+                <div class="preview-options compact" id="webhookField" style="display: none;">
+                    <div class="compact-field">
+                        <div class="field-header">
+                            <span class="label-icon">🔗</span>
+                            <span class="field-label">Webhook URL</span>
+                            <button type="button" class="info-btn" onclick="showInfo('webhook')" title="Что это?">i</button>
+                        </div>
+                        <input type="url"
+                               id="webhookUrl"
+                               name="webhook_url"
+                               class="compact-input"
+                               placeholder="https://example.com или текст"
+                               minlength="4"
+                               maxlength="1024">
+                        <div id="webhookInfo" class="info-popup hidden">
+                            <div class="info-content">
+                                <strong>🔗 Webhook URL</strong>
+                                <p>Будет вызван при доступе к файлу. Можно указать любой текст от 4 до 1024 символов.</p>
+                                <span class="info-close" onclick="hideInfo('webhook')">✕</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="preview-options compact" id="passwordField" style="display: none;">
+                    <div class="compact-field">
+                        <div class="field-header">
+                            <span class="label-icon">🔒</span>
+                            <span class="field-label">Пароль для удаления</span>
+                            <button type="button" class="info-btn" onclick="showInfo('password')" title="Что это?">i</button>
+                        </div>
+                        <input type="password"
+                               id="deletePassword"
+                               name="delete_password"
+                               class="compact-input"
+                               placeholder="Придумайте пароль"
+                               minlength="4"
+                               maxlength="16">
+                        <div id="passwordInfo" class="info-popup hidden">
+                            <div class="info-content">
+                                <strong>🔒 Пароль для удаления</strong>
+                                <p>Потребуется при удалении файла. Длина: от 4 до 16 символов.</p>
+                                <span class="info-close" onclick="hideInfo('password')">✕</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- КОНЕЦ НОВЫХ ПОЛЕЙ -->
+
                 <div class="preview-actions">
                     <button class="btn btn-primary" id="confirmBtn">
                         <span class="btn-icon">✨</span>

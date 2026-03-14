@@ -30,7 +30,7 @@ async def init_db(db_path: str = DB_PATH):
 
         if not table_exists:
             print("🆕 Создание новой базы данных...")
-            # Таблица файлов с полем deleted и downloads
+            # Таблица файлов с новыми полями
             await db.execute('''
                 CREATE TABLE files (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +44,11 @@ async def init_db(db_path: str = DB_PATH):
                     downloads INTEGER DEFAULT 0,
                     deleted BOOLEAN DEFAULT 0,
                     delete_date TIMESTAMP,
-                    delete_reason TEXT
+                    delete_reason TEXT,
+                    last_view_date DATE, -- Дата последнего просмотра (без времени для производительности)
+                    last_download_date DATE, -- Дата последнего скачивания (без времени для производительности)
+                    webhook_url TEXT DEFAULT '', -- URL вебхука для вызова при попытке доступа к файлу
+                    delete_password TEXT DEFAULT '' -- Пароль для удаления файла
                 )
             ''')
 
@@ -62,8 +66,10 @@ async def init_db(db_path: str = DB_PATH):
             ''')
 
             await db.execute('CREATE INDEX idx_files_token ON files(token)')
-            await db.execute('CREATE INDEX idx_comments_file_token ON comments(file_token)')
             await db.execute('CREATE INDEX idx_files_deleted ON files(deleted)')
+            await db.execute('CREATE INDEX idx_files_last_view_date ON files(last_view_date)')
+            await db.execute('CREATE INDEX idx_files_last_download_date ON files(last_download_date)')
+            await db.execute('CREATE INDEX idx_comments_file_token ON comments(file_token)')
 
             await db.commit()
             print("✅ Новая база данных создана")
@@ -71,7 +77,7 @@ async def init_db(db_path: str = DB_PATH):
             # Проверяем структуру таблицы files
             files_columns = await get_table_info(db, "files")
 
-            # Добавляем недостающие поля
+            # Добавляем недостающие поля (если их нет)
             if 'deleted' not in files_columns:
                 print("🔄 Обновление таблицы files: добавляем поле deleted...")
                 await db.execute("ALTER TABLE files ADD COLUMN deleted BOOLEAN DEFAULT 0")
@@ -87,6 +93,33 @@ async def init_db(db_path: str = DB_PATH):
             if 'downloads' not in files_columns:
                 print("🔄 Обновление таблицы files: добавляем поле downloads...")
                 await db.execute("ALTER TABLE files ADD COLUMN downloads INTEGER DEFAULT 0")
+
+            if 'last_view_date' not in files_columns:
+                print("🔄 Обновление таблицы files: добавляем поле last_view_date...")
+                await db.execute("ALTER TABLE files ADD COLUMN last_view_date DATE")
+
+            if 'last_download_date' not in files_columns:
+                print("🔄 Обновление таблицы files: добавляем поле last_download_date...")
+                await db.execute("ALTER TABLE files ADD COLUMN last_download_date DATE")
+
+            if 'webhook_url' not in files_columns:
+                print("🔄 Обновление таблицы files: добавляем поле webhook_url...")
+                await db.execute("ALTER TABLE files ADD COLUMN webhook_url TEXT DEFAULT ''")
+
+            if 'delete_password' not in files_columns:
+                print("🔄 Обновление таблицы files: добавляем поле delete_password...")
+                await db.execute("ALTER TABLE files ADD COLUMN delete_password TEXT DEFAULT ''")
+
+            # Проверяем и создаем новые индексы
+            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_files_last_view_date'")
+            index_exists = await cursor.fetchone()
+            if not index_exists and 'last_view_date' in files_columns:
+                await db.execute("CREATE INDEX idx_files_last_view_date ON files(last_view_date)")
+
+            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_files_last_download_date'")
+            index_exists = await cursor.fetchone()
+            if not index_exists and 'last_download_date' in files_columns:
+                await db.execute("CREATE INDEX idx_files_last_download_date ON files(last_download_date)")
 
             # Проверяем таблицу comments
             comments_columns = await get_table_info(db, "comments")
@@ -108,22 +141,80 @@ async def save_file_metadata(
         mime_type: str,
         size: int,
         file_path: str,
+        webhook_url: str = '',  # новый параметр
+        delete_password: str = '',  # новый параметр
         db_path: str = DB_PATH
 ) -> None:
     """Сохраняет метаданные загруженного файла."""
     async with aiosqlite.connect(db_path) as db:
         columns = await get_table_info(db, "files")
 
+        # Получаем текущую дату для last_view_date и last_download_date
+        current_date = datetime.now().strftime('%Y-%m-%d')
+
         if 'filename' in columns:
-            await db.execute('''
-                INSERT INTO files (token, filename, mime_type, size, file_path, deleted, downloads)
-                VALUES (?, ?, ?, ?, ?, 0, 0)
-            ''', (token, filename, mime_type, size, file_path))
+            # Проверяем наличие всех полей и формируем запрос динамически
+            fields = ['token', 'filename', 'mime_type', 'size', 'file_path', 'deleted', 'downloads']
+            values = [token, filename, mime_type, size, file_path, 0, 0]
+            placeholders = ['?', '?', '?', '?', '?', '?', '?']
+
+            if 'webhook_url' in columns:
+                fields.append('webhook_url')
+                values.append(webhook_url)
+                placeholders.append('?')
+
+            if 'delete_password' in columns:
+                fields.append('delete_password')
+                values.append(delete_password)
+                placeholders.append('?')
+
+            if 'last_view_date' in columns:
+                fields.append('last_view_date')
+                values.append(current_date)
+                placeholders.append('?')
+
+            if 'last_download_date' in columns:
+                fields.append('last_download_date')
+                values.append(current_date)
+                placeholders.append('?')
+
+            query = f'''
+                INSERT INTO files ({', '.join(fields)})
+                VALUES ({', '.join(placeholders)})
+            '''
+            await db.execute(query, values)
+
         elif 'original_name' in columns:
-            await db.execute('''
-                INSERT INTO files (token, original_name, mime_type, size, file_path, deleted, downloads)
-                VALUES (?, ?, ?, ?, ?, 0, 0)
-            ''', (token, filename, mime_type, size, file_path))
+            # Аналогично для старой схемы
+            fields = ['token', 'original_name', 'mime_type', 'size', 'file_path', 'deleted', 'downloads']
+            values = [token, filename, mime_type, size, file_path, 0, 0]
+            placeholders = ['?', '?', '?', '?', '?', '?', '?']
+
+            if 'webhook_url' in columns:
+                fields.append('webhook_url')
+                values.append(webhook_url)
+                placeholders.append('?')
+
+            if 'delete_password' in columns:
+                fields.append('delete_password')
+                values.append(delete_password)
+                placeholders.append('?')
+
+            if 'last_view_date' in columns:
+                fields.append('last_view_date')
+                values.append(current_date)
+                placeholders.append('?')
+
+            if 'last_download_date' in columns:
+                fields.append('last_download_date')
+                values.append(current_date)
+                placeholders.append('?')
+
+            query = f'''
+                INSERT INTO files ({', '.join(fields)})
+                VALUES ({', '.join(placeholders)})
+            '''
+            await db.execute(query, values)
 
         await db.commit()
 
@@ -141,19 +232,30 @@ async def get_file_metadata(
         columns = await get_table_info(db, "files")
         name_field = 'filename' if 'filename' in columns else 'original_name'
 
+        # Формируем запрос с учетом всех возможных полей
+        base_fields = ['token', name_field, 'mime_type', 'size', 'file_path',
+                       'upload_date', 'views', 'downloads', 'deleted',
+                       'delete_date', 'delete_reason']
+
+        # Добавляем новые поля, если они существуют
+        optional_fields = ['last_view_date', 'last_download_date', 'webhook_url', 'delete_password']
+        for field in optional_fields:
+            if field in columns:
+                base_fields.append(field)
+
+        fields_str = ', '.join(base_fields)
+
         # Формируем запрос с учетом флага include_deleted
         if include_deleted:
             query = f'''
-                SELECT token, {name_field}, mime_type, size, file_path, 
-                       upload_date, views, downloads, deleted, delete_date, delete_reason
+                SELECT {fields_str}
                 FROM files 
                 WHERE token = ?
             '''
             params = (token,)
         else:
             query = f'''
-                SELECT token, {name_field}, mime_type, size, file_path, 
-                       upload_date, views, downloads, deleted, delete_date, delete_reason
+                SELECT {fields_str}
                 FROM files 
                 WHERE token = ? AND deleted = 0
             '''
@@ -181,22 +283,132 @@ async def get_file_metadata(
                 result['delete_date'] = row[9]
                 result['delete_reason'] = row[10]
 
+            # Добавляем новые поля, если они есть
+            field_index = 11
+            if 'last_view_date' in columns and len(row) > field_index:
+                result['last_view_date'] = row[field_index]
+                field_index += 1
+            if 'last_download_date' in columns and len(row) > field_index:
+                result['last_download_date'] = row[field_index]
+                field_index += 1
+            if 'webhook_url' in columns and len(row) > field_index:
+                result['webhook_url'] = row[field_index]
+                field_index += 1
+            if 'delete_password' in columns and len(row) > field_index:
+                result['delete_password'] = row[field_index]
+
             return result
         return None
 
 
 async def increment_view_count(token: str, db_path: str = DB_PATH) -> None:
-    """Увеличивает счетчик просмотров."""
+    """Увеличивает счетчик просмотров и обновляет дату последнего просмотра."""
     async with aiosqlite.connect(db_path) as db:
-        await db.execute('UPDATE files SET views = views + 1 WHERE token = ? AND deleted = 0', (token,))
+        columns = await get_table_info(db, "files")
+
+        if 'last_view_date' in columns:
+            # Используем текущую дату в формате YYYY-MM-DD
+            current_date = datetime.now().strftime('%Y-%m-%d')
+            await db.execute('''
+                UPDATE files 
+                SET views = views + 1,
+                    last_view_date = ?
+                WHERE token = ? AND deleted = 0
+            ''', (current_date, token))
+        else:
+            await db.execute('UPDATE files SET views = views + 1 WHERE token = ? AND deleted = 0', (token,))
+
         await db.commit()
 
 
 async def increment_download_count(token: str, db_path: str = DB_PATH) -> None:
-    """Увеличивает счетчик скачиваний."""
+    """Увеличивает счетчик скачиваний и обновляет дату последнего скачивания."""
     async with aiosqlite.connect(db_path) as db:
-        await db.execute('UPDATE files SET downloads = downloads + 1 WHERE token = ? AND deleted = 0', (token,))
+        columns = await get_table_info(db, "files")
+
+        if 'last_download_date' in columns:
+            # Используем текущую дату в формате YYYY-MM-DD
+            current_date = datetime.now().strftime('%Y-%m-%d')
+            await db.execute('''
+                UPDATE files 
+                SET downloads = downloads + 1,
+                    last_download_date = ?
+                WHERE token = ? AND deleted = 0
+            ''', (current_date, token))
+        else:
+            await db.execute('UPDATE files SET downloads = downloads + 1 WHERE token = ? AND deleted = 0', (token,))
+
         await db.commit()
+
+
+async def update_webhook_url(
+        token: str,
+        webhook_url: str,
+        db_path: str = DB_PATH
+) -> bool:
+    """Обновляет URL вебхука для файла."""
+    async with aiosqlite.connect(db_path) as db:
+        columns = await get_table_info(db, "files")
+
+        if 'webhook_url' not in columns:
+            return False
+
+        await db.execute('''
+            UPDATE files 
+            SET webhook_url = ?
+            WHERE token = ? AND deleted = 0
+        ''', (webhook_url, token))
+
+        await db.commit()
+        return True
+
+
+async def set_delete_password(
+        token: str,
+        password: str,
+        db_path: str = DB_PATH
+) -> bool:
+    """Устанавливает пароль для удаления файла."""
+    async with aiosqlite.connect(db_path) as db:
+        columns = await get_table_info(db, "files")
+
+        if 'delete_password' not in columns:
+            return False
+
+        await db.execute('''
+            UPDATE files 
+            SET delete_password = ?
+            WHERE token = ? AND deleted = 0
+        ''', (password, token))
+
+        await db.commit()
+        return True
+
+
+async def verify_delete_password(
+        token: str,
+        password: str,
+        db_path: str = DB_PATH
+) -> bool:
+    """Проверяет пароль для удаления файла."""
+    async with aiosqlite.connect(db_path) as db:
+        columns = await get_table_info(db, "files")
+
+        if 'delete_password' not in columns:
+            return True  # Если поля нет, считаем что пароль не требуется
+
+        cursor = await db.execute('''
+            SELECT delete_password 
+            FROM files 
+            WHERE token = ? AND deleted = 0
+        ''', (token,))
+
+        row = await cursor.fetchone()
+
+        if not row or not row[0]:  # Если пароль не установлен
+            return True
+
+        return row[0] == password
 
 
 async def mark_file_as_deleted(

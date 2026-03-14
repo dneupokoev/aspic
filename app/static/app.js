@@ -11,6 +11,8 @@ let currentPreviewId = null;
 let currentFileData = null;
 let isTextEditable = false;
 let originalTextContent = null;
+let webhookUrl = '';
+let deletePassword = '';
 
 // DOM элементы
 const elements = {
@@ -102,7 +104,22 @@ function resetToUpload() {
     currentFileData = null;
     isTextEditable = false;
     originalTextContent = null;
+    webhookUrl = '';
+    deletePassword = '';
     elements.previewContainer.innerHTML = '<div class="preview-placeholder">Выберите файл для предпросмотра</div>';
+
+    // Скрываем поля при возврате на главную
+    const webhookField = document.getElementById('webhookField');
+    const passwordField = document.getElementById('passwordField');
+    if (webhookField) webhookField.style.display = 'none';
+    if (passwordField) passwordField.style.display = 'none';
+
+    // Очищаем значения
+    if (document.getElementById('webhookUrl')) document.getElementById('webhookUrl').value = '';
+    if (document.getElementById('deletePassword')) document.getElementById('deletePassword').value = '';
+
+    // Скрываем все информационные попапы
+    hideAllInfo();
 }
 
 // ============================================
@@ -341,6 +358,12 @@ async function uploadForPreview(file, textContent = null) {
         elements.previewType.textContent = getFileTypeName(data.mime_type);
         elements.previewIcon.textContent = data.icon || '📄';
 
+        // Показываем поля для webhook и пароля при предпросмотре
+        const webhookField = document.getElementById('webhookField');
+        const passwordField = document.getElementById('passwordField');
+        if (webhookField) webhookField.style.display = 'block';
+        if (passwordField) passwordField.style.display = 'block';
+
         // ✅ Если это текст из буфера - показываем textarea на всё поле
         if (textContent !== null && data.mime_type.startsWith('text/')) {
             isTextEditable = true;
@@ -396,6 +419,21 @@ async function confirmUpload() {
         return;
     }
 
+    // Получаем значения из полей ввода
+    webhookUrl = document.getElementById('webhookUrl')?.value || '';
+    deletePassword = document.getElementById('deletePassword')?.value || '';
+
+    // Валидация
+    if (webhookUrl && (webhookUrl.length < 4 || webhookUrl.length > 1024)) {
+        alert('URL вебхука должен быть от 4 до 1024 символов');
+        return;
+    }
+
+    if (deletePassword && (deletePassword.length < 4 || deletePassword.length > 16)) {
+        alert('Пароль должен быть от 4 до 16 символов');
+        return;
+    }
+
     setLoading(true);
 
     try {
@@ -403,7 +441,9 @@ async function confirmUpload() {
             preview_id: currentPreviewId,
             filename: currentFileData.filename,
             mime_type: currentFileData.mime_type,
-            size: currentFileData.size
+            size: currentFileData.size,
+            webhook_url: webhookUrl,
+            delete_password: deletePassword
         };
 
         // ✅ Если текст редактируемый - отправляем изменённое содержимое
@@ -450,6 +490,52 @@ async function confirmUpload() {
         setLoading(false);
     }
 }
+
+// ============================================
+// ФУНКЦИИ ДЛЯ КНОПОК ИНФОРМАЦИИ
+// ============================================
+
+function showInfo(type) {
+    // Скрываем все открытые попапы
+    hideAllInfo();
+
+    // Показываем нужный
+    const info = document.getElementById(type + 'Info');
+    if (info) {
+        info.classList.remove('hidden');
+
+        // Закрытие при клике вне попапа
+        setTimeout(() => {
+            document.addEventListener('click', function closeInfo(e) {
+                if (!info.contains(e.target) && !e.target.classList.contains('info-btn')) {
+                    info.classList.add('hidden');
+                    document.removeEventListener('click', closeInfo);
+                }
+            });
+        }, 100);
+    }
+}
+
+function hideInfo(type) {
+    const info = document.getElementById(type + 'Info');
+    if (info) {
+        info.classList.add('hidden');
+    }
+}
+
+function hideAllInfo() {
+    const infos = document.querySelectorAll('.info-popup');
+    infos.forEach(info => {
+        info.classList.add('hidden');
+    });
+}
+
+// Закрытие по Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        hideAllInfo();
+    }
+});
 
 // ============================================
 // ОБРАБОТЧИКИ СОБЫТИЙ
