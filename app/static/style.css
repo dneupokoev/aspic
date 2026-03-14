@@ -960,6 +960,32 @@ body {
 }
 
 /* ============================================
+   РЕДАКТИРОВАНИЕ ТЕКСТА (НОВОЕ)
+   ============================================ */
+
+.text-editor-area {
+    width: 100%;
+    height: 100%;
+    min-height: 300px;
+    max-height: 500px;
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 15px;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: none;
+    box-sizing: border-box;
+    background: var(--light);
+    color: var(--dark);
+}
+
+.text-editor-area:focus {
+    outline: 2px solid var(--primary);
+    background: white;
+}
+
+/* ============================================
    ТЕМНАЯ ТЕМА
    ============================================ */
 
@@ -1097,6 +1123,16 @@ body {
 
     .comment-author {
         color: #7b9cff;
+    }
+
+    /* ✅ Тёмная тема для редактора текста */
+    .text-editor-area {
+        background: #363636;
+        color: #e0e0e0;
+    }
+    .text-editor-area:focus {
+        background: #2d2d2d;
+        outline-color: #7b9cff;
     }
 }
 
@@ -1285,6 +1321,13 @@ body {
         padding: 0.75rem;
         font-size: 0.9rem;
     }
+
+    /* ✅ Мобильная адаптация редактора */
+    .text-editor-area {
+        min-height: 250px;
+        font-size: 13px;
+        padding: 12px;
+    }
 }
 
 /* ============================================
@@ -1465,25 +1508,4 @@ body {
 /* Формы */
 .form-hint {
     font-size: 0.7rem;
-}
-
-.text-editor-area {
-    width: 100%;
-    height: 400px;
-    min-height: 300px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 15px;
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
-    line-height: 1.5;
-    resize: none; /* Запрет изменения размера! */
-    box-sizing: border-box;
-    background: #f8f9fa;
-}
-
-.text-editor-area:focus {
-    outline: none;
-    border-color: #5c7cfa;
-    background: #fff;
 }
