@@ -1,6 +1,6 @@
 #!/bin/bash
 
-pipenv lock
+#pipenv lock
 
 rm docker/requirements.txt
 pipenv requirements > docker/requirements.txt

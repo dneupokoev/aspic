@@ -250,56 +250,51 @@ async function handlePaste(event) {
 }
 
 // Функция для активации вставки по клику на кнопку
-function activatePaste() {
-    // Создаем временное текстовое поле
-    const tempInput = document.createElement('textarea');
-    tempInput.style.position = 'fixed';
-    tempInput.style.opacity = '0';
-    tempInput.style.pointerEvents = 'none';
-    tempInput.style.top = '0';
-    tempInput.style.left = '0';
-    tempInput.style.width = '1px';
-    tempInput.style.height = '1px';
-    document.body.appendChild(tempInput);
+async function activatePaste() {
+    try {
+        const clipboardItems = await navigator.clipboard.read();
 
-    // Фокусируем и очищаем
-    tempInput.focus();
-    tempInput.value = '';
-
-    // Показываем уведомление
-    const button = document.getElementById('pasteTrigger');
-    const originalText = button.innerHTML;
-    button.innerHTML = '⏳ Ожидание вставки...';
-    button.disabled = true;
-
-    // Создаем обработчик для одной вставки
-    const pasteHandler = (e) => {
-        e.preventDefault();
-        handlePaste(e);
-
-        // Убираем временное поле и обработчик
-        if (document.body.contains(tempInput)) {
-            document.body.removeChild(tempInput);
+        if (!clipboardItems || clipboardItems.length === 0) {
+            alert('Не удалось вставить из буфера обмена.');
+            return;
         }
-        document.removeEventListener('paste', pasteHandler);
 
-        // Восстанавливаем кнопку
-        button.innerHTML = originalText;
-        button.disabled = false;
-    };
+        const item = clipboardItems[0];
+        let fileFromClipboard = null;
+        let textFromClipboard = null;
 
-    // Слушаем событие вставки
-    document.addEventListener('paste', pasteHandler);
-
-    // Автоматически убираем через 10 секунд, если ничего не вставили
-    setTimeout(() => {
-        if (document.body.contains(tempInput)) {
-            document.body.removeChild(tempInput);
-            document.removeEventListener('paste', pasteHandler);
-            button.innerHTML = originalText;
-            button.disabled = false;
+        if (item.types.some(type => type.startsWith('image/'))) {
+            const imageType = item.types.find(type => type.startsWith('image/'));
+            const blob = await item.getType(imageType);
+            if (blob && blob.type.startsWith('image/')) {
+                fileFromClipboard = blob;
+            }
+        } else if (item.types.includes('text/plain')) {
+            const blob = await item.getType('text/plain');
+            textFromClipboard = await blob.text();
         }
-    }, 10000);
+
+        if (fileFromClipboard) {
+            const fileName = `clipboard_image_${new Date().toISOString().slice(0,19).replace(/[-:]/g, '')}.png`;
+            const newFile = new File([fileFromClipboard], fileName, { type: fileFromClipboard.type });
+            uploadForPreview(newFile);
+            return;
+        }
+
+        if (textFromClipboard && textFromClipboard.trim()) {
+            const fileName = `clipboard_text_${new Date().toISOString().slice(0,19).replace(/[-:]/g, '')}.txt`;
+            const textBlob = new Blob([textFromClipboard], { type: 'text/plain' });
+            const textFile = new File([textBlob], fileName, { type: 'text/plain' });
+            uploadForPreview(textFile);
+            return;
+        }
+
+        alert('Не удалось вставить из буфера обмена.');
+
+    } catch (err) {
+        console.error('Ошибка чтения буфера:', err);
+        alert('Не удалось вставить из буфера обмена.');
+    }
 }
 
 // ============================================
