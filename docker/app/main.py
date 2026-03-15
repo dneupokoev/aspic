@@ -112,7 +112,9 @@ app = FastAPI(
     description="A Simple Public Image/File Cloud — минималистичный файловый хостинг с комментариями",
     version="0.1.0",
     lifespan=lifespan,
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
+    # docs_url=None,  # Отключаем docs для безопасности
+    # redoc_url=None  # Отключаем redoc для безопасности
 )
 
 # Rate limiter
@@ -127,6 +129,23 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 # Создаем необходимые директории
 Path(UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
 Path(PREVIEW_DIR).mkdir(parents=True, exist_ok=True)
+
+
+# ============================================
+# ОБРАБОТЧИКИ ОШИБОК 404
+# ============================================
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    """Обработчик для несуществующих страниц."""
+    # Проверяем, является ли запрос API-запросом
+    if request.url.path.startswith('/api/'):
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Ресурс не найден"}
+        )
+
+    # Для всех остальных страниц - перенаправляем на главную с сообщением об ошибке
+    return RedirectResponse(url="/?error=not_found", status_code=303)
 
 
 # ============================================
@@ -326,11 +345,29 @@ async def preview_file(token: str):
     """Отдает файл для предпросмотра (НЕ увеличивает просмотры)."""
     file_info = await get_file_metadata(token)
     if not file_info:
-        raise HTTPException(status_code=404, detail="Файл не найден")
+        # Если файл не найден, отдаем заглушку
+        oops_path = Path("app/static/oops_img.jpg")
+        if oops_path.exists():
+            return FileResponse(
+                path=oops_path,
+                media_type="image/jpeg",
+                headers={"Content-Disposition": "inline"}
+            )
+        else:
+            raise HTTPException(status_code=404, detail="Файл не найден")
 
     file_path = Path(file_info['file_path'])
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Файл не найден на диске")
+        # Если файл не найден на диске, отдаем заглушку
+        oops_path = Path("app/static/oops_img.jpg")
+        if oops_path.exists():
+            return FileResponse(
+                path=oops_path,
+                media_type="image/jpeg",
+                headers={"Content-Disposition": "inline"}
+            )
+        else:
+            raise HTTPException(status_code=404, detail="Файл не найден на диске")
 
     return FileResponse(
         path=file_path,

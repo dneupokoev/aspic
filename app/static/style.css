@@ -1125,7 +1125,7 @@ body {
         color: #7b9cff;
     }
 
-    /* ✅ Тёмная тема для редактора текста */
+    /* Тёмная тема для редактора текста */
     .text-editor-area {
         background: #363636;
         color: #e0e0e0;
@@ -1322,7 +1322,7 @@ body {
         font-size: 0.9rem;
     }
 
-    /* ✅ Мобильная адаптация редактора */
+    /* Мобильная адаптация редактора */
     .text-editor-area {
         min-height: 250px;
         font-size: 13px;
@@ -1331,7 +1331,7 @@ body {
 }
 
 /* ============================================
-   АДАПТИВНАЯ РАСКЛАДКА КНОПОК (НОВОЕ)
+   АДАПТИВНАЯ РАСКЛАДКА КНОПОК
    ============================================ */
 
 /* Десктоп - все в ряд */
@@ -1510,8 +1510,6 @@ body {
     font-size: 0.7rem;
 }
 
-
-
 /* ============================================
    ПОЛЯ ДЛЯ WEBHOOK И ПАРОЛЯ
    ============================================ */
@@ -1524,86 +1522,6 @@ body {
     border: 1px solid var(--border);
     transition: var(--transition);
 }
-
-.preview-options .form-group {
-    margin-bottom: 0;
-}
-
-.preview-options label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-    color: var(--dark);
-}
-
-.label-icon {
-    font-size: 1.2rem;
-}
-
-.preview-options .author-input {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: var(--border-radius-sm);
-    font-family: inherit;
-    font-size: 1rem;
-    background: white;
-    transition: var(--transition);
-}
-
-.preview-options .author-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
-}
-
-.preview-options .form-hint {
-    display: block;
-    font-size: 0.8rem;
-    color: var(--gray);
-    margin-top: 0.5rem;
-}
-
-/* Тёмная тема */
-@media (prefers-color-scheme: dark) {
-    .preview-options {
-        background: #363636;
-        border-color: #404040;
-    }
-
-    .preview-options .author-input {
-        background: #2d2d2d;
-        color: white;
-        border-color: #404040;
-    }
-
-    .preview-options .author-input:focus {
-        border-color: #7b9cff;
-    }
-}
-
-/* Мобильная адаптация */
-@media (max-width: 768px) {
-    .preview-options {
-        padding: 0.75rem;
-    }
-
-    .preview-options label {
-        font-size: 0.9rem;
-    }
-
-    .preview-options .author-input {
-        padding: 0.6rem;
-        font-size: 0.9rem;
-    }
-}
-
-
-/* ============================================
-   КОМПАКТНЫЕ ПОЛЯ ДЛЯ WEBHOOK И ПАРОЛЯ
-   ============================================ */
 
 .preview-options.compact {
     background: transparent;
@@ -1727,57 +1645,6 @@ body {
     }
 }
 
-/* Тёмная тема */
-@media (prefers-color-scheme: dark) {
-    .compact-input {
-        background: #363636;
-        color: white;
-        border-color: #404040;
-    }
-
-    .compact-input:focus {
-        border-color: #7b9cff;
-    }
-
-    .info-content {
-        background: #2d2d2d;
-        border-color: #7b9cff;
-    }
-
-    .info-content p {
-        color: #e0e0e0;
-    }
-}
-
-/* Мобильная адаптация */
-@media (max-width: 768px) {
-    .compact-field {
-        gap: 0.15rem;
-    }
-
-    .field-header {
-        font-size: 0.8rem;
-    }
-
-    .compact-input {
-        padding: 0.4rem 0.6rem;
-        font-size: 0.85rem;
-    }
-
-    .info-btn {
-        width: 18px;
-        height: 18px;
-        font-size: 11px;
-    }
-
-    .info-content {
-        padding: 0.5rem 0.75rem;
-        font-size: 0.8rem;
-    }
-}
-
-
-
 /* ============================================
    КАПЧА В ОДНУ СТРОКУ
    ============================================ */
@@ -1886,8 +1753,60 @@ body {
     box-shadow: 0 0 0 3px rgba(239, 71, 111, 0.2);
 }
 
-/* Тёмная тема */
+/* ============================================
+   СТИЛИ ДЛЯ ОШИБОК И КУЛДАУНА
+   ============================================ */
+
+.error-field {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 3px rgba(239, 71, 111, 0.3) !important;
+    animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+    20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+.btn-danger:disabled,
+.btn-primary:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-danger:disabled:hover,
+.btn-primary:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* ============================================
+   ТЁМНАЯ ТЕМА ДЛЯ ДОПОЛНИТЕЛЬНЫХ ЭЛЕМЕНТОВ
+   ============================================ */
+
 @media (prefers-color-scheme: dark) {
+    .compact-input {
+        background: #363636;
+        color: white;
+        border-color: #404040;
+    }
+
+    .compact-input:focus {
+        border-color: #7b9cff;
+    }
+
+    .info-content {
+        background: #2d2d2d;
+        border-color: #7b9cff;
+    }
+
+    .info-content p {
+        color: #e0e0e0;
+    }
+
     .captcha-question strong {
         background: #2d2d2d;
         color: #7b9cff;
@@ -1908,10 +1827,55 @@ body {
         color: white;
         border-color: #ff6b93;
     }
+
+    .error-field {
+        border-color: #ff6b93 !important;
+        box-shadow: 0 0 0 3px rgba(255, 107, 147, 0.3) !important;
+    }
 }
 
-/* Мобильная адаптация */
+/* ============================================
+   МОБИЛЬНАЯ АДАПТАЦИЯ ДЛЯ ДОПОЛНИТЕЛЬНЫХ ЭЛЕМЕНТОВ
+   ============================================ */
+
 @media (max-width: 768px) {
+    .preview-options {
+        padding: 0.75rem;
+    }
+
+    .preview-options label {
+        font-size: 0.9rem;
+    }
+
+    .preview-options .author-input {
+        padding: 0.6rem;
+        font-size: 0.9rem;
+    }
+
+    .compact-field {
+        gap: 0.15rem;
+    }
+
+    .field-header {
+        font-size: 0.8rem;
+    }
+
+    .compact-input {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.85rem;
+    }
+
+    .info-btn {
+        width: 18px;
+        height: 18px;
+        font-size: 11px;
+    }
+
+    .info-content {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8rem;
+    }
+
     .captcha-row {
         flex-direction: column;
         align-items: stretch;
@@ -1931,161 +1895,5 @@ body {
 
     .password-label {
         padding-left: 0;
-    }
-}
-
-
-/* ============================================
-   СТИЛИ ДЛЯ ОШИБОК И КУЛДАУНА
-   ============================================ */
-
-.error-field {
-    border-color: var(--danger) !important;
-    box-shadow: 0 0 0 3px rgba(239, 71, 111, 0.3) !important;
-    animation: shake 0.5s ease;
-}
-
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
-    20%, 40%, 60%, 80% { transform: translateX(2px); }
-}
-
-.btn-danger:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-}
-
-.btn-danger:disabled:hover {
-    transform: none;
-    box-shadow: none;
-}
-
-/* Тёмная тема для ошибок */
-@media (prefers-color-scheme: dark) {
-    .error-field {
-        border-color: #ff6b93 !important;
-        box-shadow: 0 0 0 3px rgba(255, 107, 147, 0.3) !important;
-    }
-}
-
-
-
-/* ============================================
-   СТИЛИ ДЛЯ ОШИБОК И КУЛДАУНА
-   ============================================ */
-
-.error-field {
-    border-color: var(--danger) !important;
-    box-shadow: 0 0 0 3px rgba(239, 71, 111, 0.3) !important;
-    animation: shake 0.5s ease;
-}
-
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
-    20%, 40%, 60%, 80% { transform: translateX(2px); }
-}
-
-.btn-danger:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-}
-
-.btn-danger:disabled:hover {
-    transform: none;
-    box-shadow: none;
-}
-
-.error-message {
-    background: #fee;
-    border-left: 4px solid var(--danger);
-    padding: 1rem;
-    margin-bottom: 1.5rem;
-    border-radius: var(--border-radius-sm);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    position: relative;
-    animation: slideDown 0.3s ease;
-}
-
-.error-icon {
-    font-size: 1.2rem;
-}
-
-.error-text {
-    flex: 1;
-    color: var(--dark);
-}
-
-.error-close {
-    background: none;
-    border: none;
-    font-size: 1.2rem;
-    cursor: pointer;
-    color: var(--gray);
-    padding: 0 0.5rem;
-}
-
-.error-close:hover {
-    color: var(--danger);
-}
-
-/* Тёмная тема */
-@media (prefers-color-scheme: dark) {
-    .error-field {
-        border-color: #ff6b93 !important;
-        box-shadow: 0 0 0 3px rgba(255, 107, 147, 0.3) !important;
-    }
-
-    .error-message {
-        background: #442222;
-        border-left-color: #ff8a8a;
-    }
-
-    .error-text {
-        color: #ff8a8a;
-    }
-}
-
-
-/* Стили для кнопок в состоянии кулдауна */
-.btn-primary:disabled,
-.btn-danger:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-}
-
-.btn-primary:disabled:hover,
-.btn-danger:disabled:hover {
-    transform: none;
-    box-shadow: none;
-}
-
-/* Анимация для ошибок */
-.error-field {
-    border-color: var(--danger) !important;
-    box-shadow: 0 0 0 3px rgba(239, 71, 111, 0.3) !important;
-    animation: shake 0.5s ease;
-}
-
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
-    20%, 40%, 60%, 80% { transform: translateX(2px); }
-}
-
-/* Тёмная тема */
-@media (prefers-color-scheme: dark) {
-    .error-field {
-        border-color: #ff6b93 !important;
-        box-shadow: 0 0 0 3px rgba(255, 107, 147, 0.3) !important;
     }
 }
