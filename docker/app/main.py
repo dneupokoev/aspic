@@ -27,11 +27,13 @@ from app.database import (
     increment_view_count, increment_download_count,
     update_webhook_url, set_delete_password, verify_delete_password
 )
+from app.webhook import check_webhook_access
 from app.captcha import captcha_store
 from app.config import (
     DEBUG, HOST, PORT, UPLOAD_DIR, PREVIEW_DIR, DB_PATH,
     PREVIEW_TTL, MAX_FILE_SIZE, TOKEN_LENGTH, ALLOWED_MIMES,
     RATE_LIMIT_UPLOAD, RATE_LIMIT_COMMENT, RATE_LIMIT_DELETE,
+    WEBHOOK_TIMEOUT, WEBHOOK_CACHE_TTL, WEBHOOK_RATE_LIMIT,
     get_upload_hint_text, get_not_found_message, get_file_size_limit_text,
     get_allowed_formats_text, get_dated_upload_path
 )
@@ -96,6 +98,8 @@ async def lifespan(app: FastAPI):
     print(f"📁 Временное хранилище: {PREVIEW_DIR}")
     print(f"💾 База данных: {DB_PATH}")
     print(f"📊 Поддерживаемые форматы: {len(ALLOWED_MIMES)} типов")
+    print(f"🔧 Режим DEBUG: {DEBUG}")
+    print(f"🔗 Webhook timeout: {WEBHOOK_TIMEOUT}s, cache TTL: {WEBHOOK_CACHE_TTL}s")
 
     yield
 
@@ -106,15 +110,19 @@ async def lifespan(app: FastAPI):
 # ============================================
 # ИНИЦИАЛИЗАЦИЯ FASTAPI
 # ============================================
+# Настраиваем документацию в зависимости от режима DEBUG
+docs_url = "/docs" if DEBUG else None
+redoc_url = "/redoc" if DEBUG else None
+
 app = FastAPI(
     debug=DEBUG,
     title="ASPIC",
     description="A Simple Public Image/File Cloud — минималистичный файловый хостинг с комментариями",
     version="0.1.0",
     lifespan=lifespan,
-    openapi_url="/openapi.json",
-    # docs_url=None,  # Отключаем docs для безопасности
-    # redoc_url=None  # Отключаем redoc для безопасности
+    openapi_url="/openapi.json" if DEBUG else None,
+    docs_url=docs_url,
+    redoc_url=redoc_url
 )
 
 # Rate limiter
@@ -249,6 +257,38 @@ async def get_image_info(file_path: Path) -> Optional[Dict]:
         return None
 
 
+async def verify_file_access(
+    token: str,
+    request: Request,
+    check_view: bool = False
+) -> Optional[Dict]:
+    """
+    Проверяет доступ к файлу с учетом вебхука.
+    Передаёт ВСЕ параметры запроса в вебхук.
+    Возвращает file_info если доступ разрешен, None если нет.
+    Если check_view=True, увеличивает счетчик просмотров при успешном доступе.
+    """
+    file_info = await get_file_metadata(token)
+    if not file_info:
+        return None
+
+    # Проверяем доступ через вебхук (передаём весь request)
+    webhook_url = file_info.get('webhook_url', '')
+
+    if not await check_webhook_access(webhook_url, request, token):
+        if DEBUG:
+            print(f"🔒 Webhook access denied for {token} with params {request.query_params}")
+        return None
+
+    # Если check_view=True, увеличиваем счетчик просмотров
+    client_ip = request.client.host
+    if check_view and can_increment_view(token, client_ip):
+        await increment_view_count(token)
+        print(f"👁️ Просмотр для {token} от IP {client_ip}")
+
+    return file_info
+
+
 # ============================================
 # ГЛАВНАЯ СТРАНИЦА
 # ============================================
@@ -294,15 +334,11 @@ async def index(request: Request, error: str = None):
 @app.get("/view/{token}", response_class=HTMLResponse)
 async def view_file(request: Request, token: str):
     """Страница с предпросмотром и информацией о файле."""
-    file_info = await get_file_metadata(token)
+    # Проверяем доступ к файлу (и увеличиваем счетчик просмотров)
+    file_info = await verify_file_access(token, request, check_view=True)
+
     if not file_info:
         return RedirectResponse(url=f"/?error=not_found", status_code=303)
-
-    # Увеличиваем счетчик просмотров (с защитой от накрутки)
-    client_ip = request.client.host
-    if can_increment_view(token, client_ip):
-        await increment_view_count(token)
-        print(f"👁️ Просмотр для {token} от IP {client_ip}")
 
     # Получаем дополнительную информацию о файле
     file_path = Path(file_info['file_path'])
@@ -312,6 +348,7 @@ async def view_file(request: Request, token: str):
         extra_info['image'] = await get_image_info(file_path)
 
     comments = await get_comments(token)
+    client_ip = request.client.host
     captcha = captcha_store.generate(token, client_ip)
 
     user_id = generate_user_id(request)
@@ -341,11 +378,13 @@ async def view_file(request: Request, token: str):
 # ПРЕДПРОСМОТР ФАЙЛА (ПРЯМОЙ ДОСТУП)
 # ============================================
 @app.get("/file/{token}")
-async def preview_file(token: str):
+async def preview_file(request: Request, token: str):
     """Отдает файл для предпросмотра (НЕ увеличивает просмотры)."""
-    file_info = await get_file_metadata(token)
+    # Проверяем доступ к файлу (без увеличения счетчика)
+    file_info = await verify_file_access(token, request, check_view=False)
+
     if not file_info:
-        # Если файл не найден, отдаем заглушку
+        # Если файл не найден или доступ запрещен, отдаем заглушку
         oops_path = Path("app/static/oops_img.jpg")
         if oops_path.exists():
             return FileResponse(
@@ -381,9 +420,11 @@ async def preview_file(token: str):
 # СКАЧИВАНИЕ ФАЙЛА
 # ============================================
 @app.get("/download/{token}")
-async def download_file(token: str):
+async def download_file(request: Request, token: str):
     """Скачивание файла с увеличением счетчика скачиваний."""
-    file_info = await get_file_metadata(token)
+    # Проверяем доступ к файлу (без увеличения просмотров)
+    file_info = await verify_file_access(token, request, check_view=False)
+
     if not file_info:
         raise HTTPException(status_code=404, detail="Файл не найден")
 
@@ -405,8 +446,10 @@ async def download_file(token: str):
 # API ДЛЯ ФАЙЛОВ
 # ============================================
 @app.get("/api/file/{token}")
-async def get_file_info(token: str):
-    file_info = await get_file_metadata(token)
+async def get_file_info(request: Request, token: str):
+    """API для получения информации о файле (с проверкой доступа)."""
+    file_info = await verify_file_access(token, request, check_view=False)
+
     if not file_info:
         raise HTTPException(status_code=404, detail="Файл не найден")
 
@@ -421,6 +464,7 @@ async def get_file_info(token: str):
         "upload_date": file_info['upload_date'],
         "views": file_info['views'],
         "downloads": file_info['downloads'],
+        "has_webhook": bool(file_info.get('webhook_url')),
         "page_url": f"/view/{token}",
         "preview_url": f"/file/{token}",
         "download_url": f"/download/{token}"

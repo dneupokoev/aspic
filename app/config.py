@@ -1,4 +1,5 @@
 import os
+import ipaddress
 from pathlib import Path
 from typing import List, Dict
 from datetime import datetime
@@ -19,6 +20,50 @@ PREVIEW_TTL = int(os.getenv('PREVIEW_TTL_SECONDS', 3600))
 MAX_FILE_SIZE = int(os.getenv('MAX_FILE_SIZE', 104857600))  # 100 MB
 TOKEN_LENGTH = int(os.getenv('TOKEN_LENGTH', 8))
 
+# ============================================
+# НАСТРОЙКИ ДЛЯ ВЕБХУКОВ
+# ============================================
+WEBHOOK_TIMEOUT = int(os.getenv('WEBHOOK_TIMEOUT', 5))  # Таймаут в секундах
+WEBHOOK_CACHE_TTL = int(os.getenv('WEBHOOK_CACHE_TTL', 300))  # Время кэширования ответов (5 минут)
+WEBHOOK_RATE_LIMIT = os.getenv('WEBHOOK_RATE_LIMIT', '10/minute')  # Лимит вызовов вебхуков
+
+# ============================================
+# БЕЗОПАСНОСТЬ ВЕБХУКОВ
+# ============================================
+
+# Блокировка внутренних/приватных IP (защита от SSRF)
+BLOCKED_IP_RANGES = [
+    '127.0.0.0/8',      # localhost
+    '10.0.0.0/8',       # private networks
+    '172.16.0.0/12',    # private networks
+    '192.168.0.0/16',   # private networks
+    '169.254.0.0/16',   # link-local
+    '::1',              # IPv6 localhost
+    'fc00::/7',         # IPv6 unique local
+    'fe80::/10',        # IPv6 link-local
+    '0.0.0.0/8',        # invalid addresses
+    '100.64.0.0/10',    # carrier-grade NAT
+    '198.18.0.0/15',    # network benchmark
+]
+
+# Разрешённые протоколы (только HTTPS в продакшене)
+if DEBUG:
+    ALLOWED_WEBHOOK_SCHEMES = ['http', 'https']
+else:
+    ALLOWED_WEBHOOK_SCHEMES = ['https']  # В продакшене только HTTPS
+
+# Максимальный размер ответа вебхука (1 MB)
+WEBHOOK_MAX_RESPONSE_SIZE = int(os.getenv('WEBHOOK_MAX_RESPONSE_SIZE', 1024 * 1024))  # 1 MB по умолчанию
+
+# Максимальное количество одновременных запросов к вебхукам от одного IP
+WEBHOOK_MAX_CONCURRENT_PER_IP = int(os.getenv('WEBHOOK_MAX_CONCURRENT_PER_IP', 5))
+
+# Таймауты для разных этапов
+WEBHOOK_CONNECT_TIMEOUT = int(os.getenv('WEBHOOK_CONNECT_TIMEOUT', 3))  # Таймаут подключения
+WEBHOOK_READ_TIMEOUT = int(os.getenv('WEBHOOK_READ_TIMEOUT', 5))        # Таймаут чтения
+
+# Ограничения на размеры данных
+WEBHOOK_MAX_HEADERS_SIZE = int(os.getenv('WEBHOOK_MAX_HEADERS_SIZE', 8192))  # 8 KB
 
 # ============================================
 # ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ПУТИ С ДАТОЙ

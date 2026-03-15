@@ -288,6 +288,11 @@ async function handlePaste(event) {
 
 // Функция для активации вставки по клику на кнопку
 async function activatePaste() {
+    // Проверяем, что мы на главной странице
+    if (currentState !== State.UPLOAD) {
+        return;
+    }
+
     try {
         const clipboardItems = await navigator.clipboard.read();
 
@@ -300,13 +305,19 @@ async function activatePaste() {
         let fileFromClipboard = null;
         let textFromClipboard = null;
 
-        if (item.types.some(type => type.startsWith('image/'))) {
-            const imageType = item.types.find(type => type.startsWith('image/'));
-            const blob = await item.getType(imageType);
-            if (blob && blob.type.startsWith('image/')) {
-                fileFromClipboard = blob;
+        // Проверяем, есть ли изображение в буфере
+        for (const type of item.types) {
+            if (type.startsWith('image/')) {
+                const blob = await item.getType(type);
+                if (blob && blob.type.startsWith('image/')) {
+                    fileFromClipboard = blob;
+                    break;
+                }
             }
-        } else if (item.types.includes('text/plain')) {
+        }
+
+        // Если нет изображения, проверяем текст
+        if (!fileFromClipboard && item.types.includes('text/plain')) {
             const blob = await item.getType('text/plain');
             textFromClipboard = await blob.text();
         }
