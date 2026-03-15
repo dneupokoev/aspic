@@ -12,7 +12,7 @@
 
 #### 1. Формат защищенной ссылки
 ```
-https://aspic.example.com/v/{token}?access_id={id}
+https://aspic.example.com/view/{token}?access_id={id}
 ```
 где `{id}` — идентификатор для проверки (номер заказа, код клиента и т.п.).
 
@@ -30,7 +30,7 @@ https://aspic.example.com/v/{token}?access_id={id}
 }
 ```
 
-#### 4. Логика открытия файла (`GET /v/{token}`)
+#### 4. Логика открытия файла (`GET /view/{token}`)
 
 ```python
 if file.webhook_url:
@@ -50,7 +50,7 @@ if file.webhook_url:
 
 #### 5. Защита
 - Таймаут на запрос к API — 3 секунды
-- Rate limiting на эндпоинт `/v/{token}`
+- Rate limiting на эндпоинт `/view/{token}`
 - Если API недоступен — возвращать 503
 
 ---
@@ -58,7 +58,7 @@ if file.webhook_url:
 ### 📌 Пример использования
 
 1. **Загрузка:** Владелец загружает файл с `webhook_url` и `access_param_name`
-2. **Ссылка:** `https://aspic.example.com/v/XyZ789?order_id=INV-2025-042`
+2. **Ссылка:** `https://aspic.example.com/view/XyZ789?order_id=INV-2025-042`
 3. **Проверка:** ASPIC отправляет `{"order_id": "INV-2025-042"}` на внешний API
 4. **Ответ:** `{"allowed": true}` → пользователь видит файл
 5. **Отказ:** `{"allowed": false}` → 403 Forbidden

@@ -34,19 +34,19 @@
                 <!-- Предпросмотр -->
                 <div class="preview-container">
                     {% if file.mime_type.startswith('image/') %}
-                        <img src="/s/{{ file.token }}" alt="{{ file.filename }}" class="preview-image">
+                        <img src="/file/{{ file.token }}" alt="{{ file.filename }}" class="preview-image">
                     {% elif file.mime_type == 'application/pdf' %}
-                        <iframe src="/s/{{ file.token }}" class="preview-iframe"></iframe>
+                        <iframe src="/file/{{ file.token }}" class="preview-iframe"></iframe>
                     {% elif file.mime_type.startswith('video/') %}
                         <video controls class="preview-video">
-                            <source src="/s/{{ file.token }}" type="{{ file.mime_type }}">
+                            <source src="/file/{{ file.token }}" type="{{ file.mime_type }}">
                         </video>
                     {% elif file.mime_type.startswith('audio/') %}
                         <audio controls class="preview-audio">
-                            <source src="/s/{{ file.token }}" type="{{ file.mime_type }}">
+                            <source src="/file/{{ file.token }}" type="{{ file.mime_type }}">
                         </audio>
                     {% elif file.mime_type.startswith('text/') %}
-                        <iframe src="/s/{{ file.token }}" class="preview-iframe"></iframe>
+                        <iframe src="/file/{{ file.token }}" class="preview-iframe"></iframe>
                     {% else %}
                         <div class="preview-placeholder">
                             <p>Предпросмотр недоступен</p>
@@ -62,7 +62,7 @@
 
                 <!-- КНОПКИ ДЕЙСТВИЙ -->
                 <div class="action-buttons">
-                    <a href="/d/{{ file.token }}" class="btn btn-primary btn-download" download>
+                    <a href="/download/{{ file.token }}" class="btn btn-primary btn-download" download>
                         <span class="btn-icon">📥</span>
                         <span class="btn-text">Скачать файл</span>
                     </a>
@@ -73,7 +73,7 @@
                             <span class="btn-text">Ссылка</span>
                         </button>
 
-                        <button class="btn btn-icon-only" onclick="copyToClipboard('{{ request.url.scheme }}://{{ request.url.netloc }}/s/{{ file.token }}', this, 'file')" title="Копировать ссылку на файл">
+                        <button class="btn btn-icon-only" onclick="copyToClipboard('{{ request.url.scheme }}://{{ request.url.netloc }}/file/{{ file.token }}', this, 'file')" title="Копировать ссылку на файл">
                             🔗
                         </button>
                     </div>
@@ -149,7 +149,7 @@
                 <div class="comment-form-wrapper">
                     <h4 class="comment-form-title">➕ Добавить комментарий</h4>
 
-                    <form method="post" action="/v/{{ file.token }}/comment" class="comment-form" id="commentForm" onsubmit="return handleCommentSubmit(event)">
+                    <form method="post" action="/view/{{ file.token }}/comment" class="comment-form" id="commentForm" onsubmit="return handleCommentSubmit(event)">
                         <div class="form-group">
                             <label for="comment_author">Ваше имя:</label>
                             <input type="text"
@@ -184,7 +184,7 @@
                 <h3>⚠️ Удалить</h3>
                 <p class="delete-warning">Действие необратимо</p>
 
-                <form method="post" action="/v/{{ file.token }}/delete" class="delete-form" id="deleteForm" onsubmit="return handleDeleteSubmit(event)">
+                <form method="post" action="/view/{{ file.token }}/delete" class="delete-form" id="deleteForm" onsubmit="return handleDeleteSubmit(event)">
                     <input type="hidden" name="captcha_key" value="{{ captcha.key }}">
                     {% if file.delete_password %}
                     <input type="hidden" name="password_required" value="1">

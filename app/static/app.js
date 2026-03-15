@@ -237,7 +237,13 @@ function dataURLtoFile(dataurl, filename) {
 
 // Глобальный обработчик вставки
 async function handlePaste(event) {
-    // Предотвращаем стандартное поведение
+    // Разрешаем вставку ТОЛЬКО на главной странице (в состоянии UPLOAD)
+    if (currentState !== State.UPLOAD) {
+        // На других страницах не блокируем стандартное поведение
+        return;
+    }
+
+    // Предотвращаем стандартное поведение только на главной странице
     event.preventDefault();
 
     const clipboardItems = event.clipboardData.items;
@@ -557,7 +563,7 @@ async function confirmUpload() {
         const data = await response.json();
 
         const baseUrl = window.location.origin;
-        const filePath = data.file_url || `/v/${data.token}`;
+        const filePath = data.file_url || `/view/${data.token}`;
         const fullUrl = baseUrl + filePath;
 
         elements.resultLink.value = fullUrl;

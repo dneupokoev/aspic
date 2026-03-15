@@ -272,7 +272,7 @@ async def index(request: Request, error: str = None):
 # ============================================
 # СТРАНИЦА ПРОСМОТРА ФАЙЛА
 # ============================================
-@app.get("/v/{token}", response_class=HTMLResponse)
+@app.get("/view/{token}", response_class=HTMLResponse)
 async def view_file(request: Request, token: str):
     """Страница с предпросмотром и информацией о файле."""
     file_info = await get_file_metadata(token)
@@ -298,7 +298,7 @@ async def view_file(request: Request, token: str):
     user_id = generate_user_id(request)
 
     # Ссылка на эту же страницу для копирования
-    page_url = f"{request.url.scheme}://{request.url.netloc}/v/{token}"
+    page_url = f"{request.url.scheme}://{request.url.netloc}/view/{token}"
 
     return templates.TemplateResponse(
         "view.html",
@@ -321,7 +321,7 @@ async def view_file(request: Request, token: str):
 # ============================================
 # ПРЕДПРОСМОТР ФАЙЛА (ПРЯМОЙ ДОСТУП)
 # ============================================
-@app.get("/s/{token}")
+@app.get("/file/{token}")
 async def preview_file(token: str):
     """Отдает файл для предпросмотра (НЕ увеличивает просмотры)."""
     file_info = await get_file_metadata(token)
@@ -343,7 +343,7 @@ async def preview_file(token: str):
 # ============================================
 # СКАЧИВАНИЕ ФАЙЛА
 # ============================================
-@app.get("/d/{token}")
+@app.get("/download/{token}")
 async def download_file(token: str):
     """Скачивание файла с увеличением счетчика скачиваний."""
     file_info = await get_file_metadata(token)
@@ -384,9 +384,9 @@ async def get_file_info(token: str):
         "upload_date": file_info['upload_date'],
         "views": file_info['views'],
         "downloads": file_info['downloads'],
-        "page_url": f"/v/{token}",
-        "preview_url": f"/s/{token}",
-        "download_url": f"/d/{token}"
+        "page_url": f"/view/{token}",
+        "preview_url": f"/file/{token}",
+        "download_url": f"/download/{token}"
     }
 
 
@@ -595,9 +595,9 @@ async def confirm_upload(
     return {
         "status": "success",
         "token": token,
-        "file_url": f"/v/{token}",
-        "preview_url": f"/s/{token}",
-        "download_url": f"/d/{token}"
+        "file_url": f"/view/{token}",
+        "preview_url": f"/file/{token}",
+        "download_url": f"/download/{token}"
     }
 
 
@@ -650,16 +650,16 @@ async def upload_file_api(
     return {
         "status": "success",
         "token": token,
-        "file_url": f"/v/{token}",
-        "preview_url": f"/s/{token}",
-        "download_url": f"/d/{token}"
+        "file_url": f"/view/{token}",
+        "preview_url": f"/file/{token}",
+        "download_url": f"/download/{token}"
     }
 
 
 # ============================================
 # КОММЕНТАРИИ
 # ============================================
-@app.post("/v/{token}/comment")
+@app.post("/view/{token}/comment")
 @limiter.limit(RATE_LIMIT_COMMENT)
 async def add_comment_to_file(
         request: Request,
@@ -700,7 +700,7 @@ async def add_comment_to_file(
 # ============================================
 # УДАЛЕНИЕ
 # ============================================
-@app.post("/v/{token}/delete")
+@app.post("/view/{token}/delete")
 @limiter.limit(RATE_LIMIT_DELETE)
 async def delete_file(
         request: Request,
