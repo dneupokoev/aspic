@@ -33,7 +33,7 @@ from app.config import (
     DEBUG, HOST, PORT, UPLOAD_DIR, PREVIEW_DIR, DB_PATH,
     PREVIEW_TTL, MAX_FILE_SIZE, TOKEN_LENGTH, ALLOWED_MIMES,
     RATE_LIMIT_UPLOAD, RATE_LIMIT_COMMENT, RATE_LIMIT_DELETE,
-    WEBHOOK_TIMEOUT, WEBHOOK_CACHE_TTL, WEBHOOK_RATE_LIMIT,
+    WEBHOOK_TIMEOUT, WEBHOOK_CACHE_TTL,
     get_upload_hint_text, get_not_found_message, get_file_size_limit_text,
     get_allowed_formats_text, get_dated_upload_path
 )
@@ -356,6 +356,11 @@ async def view_file(request: Request, token: str):
     # Ссылка на эту же страницу для копирования
     page_url = f"{request.url.scheme}://{request.url.netloc}/view/{token}"
 
+    # Получаем строку параметров запроса для передачи в предпросмотр
+    query_string = ""
+    if request.query_params:
+        query_string = f"?{request.query_params}"
+
     return templates.TemplateResponse(
         "view.html",
         {
@@ -369,7 +374,8 @@ async def view_file(request: Request, token: str):
             "default_author": "ЗЛОБНЫЙ_АНОНИМ",
             "format_file_size": format_file_size,
             "get_file_icon": get_file_icon,
-            "get_file_type_name": get_file_type_name
+            "get_file_type_name": get_file_type_name,
+            "query_string": query_string
         }
     )
 
@@ -613,9 +619,9 @@ async def confirm_upload(
     filename = data.get("filename", "file")
     mime_type = data.get("mime_type", "application/octet-stream")
     size = data.get("size", 0)
-    text_content = data.get("text_content")  # редактируемый текст
-    webhook_url = data.get("webhook_url", "")  # новое поле
-    delete_password = data.get("delete_password", "")  # новое поле
+    text_content = data.get("text_content")
+    webhook_url = data.get("webhook_url", "")
+    delete_password = data.get("delete_password", "")
 
     # Валидация полей
     if webhook_url and (len(webhook_url) < 4 or len(webhook_url) > 1024):
@@ -635,21 +641,16 @@ async def confirm_upload(
     token = generate_token()
     ext = temp_path.suffix
     permanent_filename = f"{token}{ext}"
-
-    # ИСПРАВЛЕНО: используем путь с датой
     permanent_path = get_dated_upload_path(permanent_filename)
 
     try:
-        # ✅ Если передан редактируемый текст - записываем его вместо файла
         if text_content is not None and mime_type.startswith('text/'):
             file_content = text_content.encode('utf-8')
             async with aiofiles.open(str(permanent_path), 'wb') as f:
                 await f.write(file_content)
-            # Обновляем размер файла
             size = len(file_content)
             print(f"✅ Файл создан из редактированного текста: {permanent_path}")
         else:
-            # ✅ Обычное перемещение файла
             shutil.move(str(temp_path), str(permanent_path))
             print(f"✅ Файл перемещен: {temp_path} -> {permanent_path}")
     except Exception as e:
@@ -673,67 +674,19 @@ async def confirm_upload(
 
     background_tasks.add_task(cleanup_old_previews)
 
-    return {
-        "status": "success",
-        "token": token,
-        "file_url": f"/view/{token}",
-        "preview_url": f"/file/{token}",
-        "download_url": f"/download/{token}"
-    }
+    view_path = f"/view/{token}"
+    file_path = f"/file/{token}"
+    download_path = f"/download/{token}"
 
-
-# ============================================
-# СТАРЫЙ API (ДЛЯ СОВМЕСТИМОСТИ)
-# ============================================
-@app.post("/api/upload")
-@limiter.limit(RATE_LIMIT_UPLOAD)
-async def upload_file_api(
-        request: Request,
-        file: UploadFile = File(...)
-):
-    file_data = await file.read()
-    if len(file_data) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="Файл слишком большой")
-
-    try:
-        mime_type = magic.from_buffer(file_data, mime=True)
-
-        if file.filename:
-            if file.filename.endswith('.docx') and mime_type == 'application/zip':
-                mime_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            elif file.filename.endswith('.doc') and mime_type == 'application/zip':
-                mime_type = 'application/msword'
-    except:
-        mime_type = "application/octet-stream"
-
-    if mime_type not in ALLOWED_MIMES:
-        raise HTTPException(status_code=400, detail="Тип файла не разрешен")
-
-    token = generate_token()
-    filename = file.filename or "file"
-    ext = Path(filename).suffix
-    permanent_filename = f"{token}{ext}"
-
-    # ИСПРАВЛЕНО: используем путь с датой
-    file_path = get_dated_upload_path(permanent_filename)
-
-    async with aiofiles.open(file_path, "wb") as f:
-        await f.write(file_data)
-
-    await save_file_metadata(
-        token=token,
-        filename=filename,
-        mime_type=mime_type,
-        size=len(file_data),
-        file_path=str(file_path)
-    )
+    print(f"✅ Созданы пути: view={view_path}, file={file_path}, download={download_path}")
 
     return {
         "status": "success",
         "token": token,
-        "file_url": f"/view/{token}",
-        "preview_url": f"/file/{token}",
-        "download_url": f"/download/{token}"
+        "file_url": view_path,
+        "preview_url": file_path,
+        "download_url": download_path,
+        "has_webhook": bool(webhook_url)
     }
 
 
@@ -795,14 +748,12 @@ async def delete_file(
 ):
     client_ip = request.client.host
 
-    # Проверяем капчу
     if not captcha_store.verify(token, client_ip, captcha_answer):
         return JSONResponse(
             status_code=400,
             content={"detail": "Неверный ответ капчи"}
         )
 
-    # Получаем информацию о файле
     file_info = await get_file_metadata(token, include_deleted=True)
     if not file_info:
         return JSONResponse(
@@ -816,7 +767,6 @@ async def delete_file(
             content={"detail": "Файл уже удален"}
         )
 
-    # Проверяем пароль
     has_password = bool(file_info.get('delete_password'))
 
     if has_password and not password_required:
@@ -869,19 +819,6 @@ async def get_captcha(request: Request, token: str):
     client_ip = request.client.host
     captcha = captcha_store.generate(token, client_ip)
     return captcha
-
-
-# ============================================
-# FAVICON
-# ============================================
-@app.get("/favicon.ico", include_in_schema=False)
-async def favicon():
-    svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-        <rect width="100" height="100" fill="white"/>
-        <text x="50" y="80" font-size="80" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">📦</text>
-    </svg>'''
-    from fastapi.responses import Response
-    return Response(content=svg, media_type="image/svg+xml")
 
 
 # ============================================

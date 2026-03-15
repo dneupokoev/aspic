@@ -4,173 +4,234 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>ASPIC — файловый хостинг</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='80' font-size='80' text-anchor='middle' font-family='Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif'%3E📦%3C/text%3E%3C/svg%3E" type="image/svg+xml">
+    <link rel="icon"
+          href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='80' font-size='80' text-anchor='middle' font-family='Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif'%3E📦%3C/text%3E%3C/svg%3E"
+          type="image/svg+xml">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="app-container">
-        <header class="app-header compact" id="appHeader">
-            <h1 class="app-title">📦 ASPIC</h1>
-            <p class="app-subtitle">Минималистичный файловый хостинг без регистрации и сроков хранения</p>
-        </header>
+<div class="app-container">
+    <header class="app-header compact" id="appHeader">
+        <h1 class="app-title">📦 ASPIC</h1>
+        <p class="app-subtitle">Минималистичный файловый хостинг без регистрации и сроков хранения</p>
+    </header>
 
-        <main class="app-main">
-            <!-- Сообщение об ошибке от сервера -->
-            {% if error_message %}
-            <div class="error-message" id="serverErrorMessage">
-                <span class="error-icon">ℹ️</span>
-                <span class="error-text">{{ error_message }}</span>
-                <button class="error-close" onclick="this.parentElement.style.display='none'">✕</button>
+    <main class="app-main">
+        <!-- Сообщение об ошибке от сервера -->
+        {% if error_message %}
+        <div class="error-message" id="serverErrorMessage">
+            <span class="error-icon">ℹ️</span>
+            <span class="error-text">{{ error_message }}</span>
+            <button class="error-close" onclick="this.parentElement.style.display='none'">✕</button>
+        </div>
+        {% endif %}
+
+        <!-- Сообщение об ошибке от клиента (для rate limit и других ошибок) -->
+        <div id="clientErrorMessage" class="error-message" style="display: none;">
+            <span class="error-icon" id="clientErrorIcon">⚠️</span>
+            <span class="error-text" id="clientErrorText"></span>
+            <button class="error-close" onclick="document.getElementById('clientErrorMessage').style.display='none'">✕</button>
+        </div>
+
+        <!-- СОСТОЯНИЕ 1: ЗАГРУЗКА ФАЙЛА -->
+        <div id="state-upload" class="state visible">
+            <div class="upload-area" id="dropZone">
+                <input type="file" id="fileInput" class="file-input">
+                <div class="upload-message">
+                    <div class="upload-icon">📤</div>
+                    <p class="upload-text">Перетащите файл сюда</p>
+                </div>
             </div>
-            {% endif %}
 
-            <!-- Сообщение об ошибке от клиента (для rate limit и других ошибок) -->
-            <div id="clientErrorMessage" class="error-message" style="display: none;">
-                <span class="error-icon" id="clientErrorIcon">⚠️</span>
-                <span class="error-text" id="clientErrorText"></span>
-                <button class="error-close" onclick="document.getElementById('clientErrorMessage').style.display='none'">✕</button>
+            <div class="action-row">
+                <button class="btn btn-secondary action-btn" id="selectFileBtn">
+                    <span class="btn-icon">📁</span>
+                    <span class="btn-text">Выбрать файл</span>
+                </button>
+
+                <button class="btn btn-secondary action-btn" id="pasteTrigger">
+                    <span class="btn-icon">📋</span>
+                    <span class="btn-text">Вставить из буфера</span>
+                    <span class="paste-hint">(Ctrl+V)</span>
+                </button>
             </div>
 
-            <!-- СОСТОЯНИЕ 1: ЗАГРУЗКА ФАЙЛА -->
-            <div id="state-upload" class="state visible">
-                <div class="upload-area" id="dropZone">
-                    <input type="file" id="fileInput" class="file-input">
-                    <div class="upload-message">
-                        <div class="upload-icon">📤</div>
-                        <p class="upload-text">Перетащите файл сюда</p>
+            <p class="upload-hint">{{ upload_hint }}</p>
+        </div>
+
+        <!-- СОСТОЯНИЕ 2: ПРЕДПРОСМОТР -->
+        <div id="state-preview" class="state hidden">
+            <div class="preview-header">
+                <div class="file-badge">
+                    <span class="file-icon" id="previewIcon">📄</span>
+                    <div class="file-meta">
+                        <span class="filename" id="previewFilename"></span>
+                        <span class="filesize" id="previewFilesize"></span>
+                        <span class="file-type" id="previewType"></span>
                     </div>
                 </div>
-
-                <div class="action-row">
-                    <button class="btn btn-secondary action-btn" id="selectFileBtn">
-                        <span class="btn-icon">📁</span>
-                        <span class="btn-text">Выбрать файл</span>
-                    </button>
-
-                    <button class="btn btn-secondary action-btn" id="pasteTrigger">
-                        <span class="btn-icon">📋</span>
-                        <span class="btn-text">Вставить из буфера</span>
-                        <span class="paste-hint">(Ctrl+V)</span>
-                    </button>
-                </div>
-
-                <p class="upload-hint">{{ upload_hint }}</p>
             </div>
 
-            <!-- СОСТОЯНИЕ 2: ПРЕДПРОСМОТР -->
-            <div id="state-preview" class="state hidden">
-                <div class="preview-header">
-                    <div class="file-badge">
-                        <span class="file-icon" id="previewIcon">📄</span>
-                        <div class="file-meta">
-                            <span class="filename" id="previewFilename"></span>
-                            <span class="filesize" id="previewFilesize"></span>
-                            <span class="file-type" id="previewType"></span>
-                        </div>
+            <div class="preview-container" id="previewContainer">
+                <div class="preview-placeholder">Загрузка предпросмотра...</div>
+            </div>
+
+            <!-- НОВЫЕ ПОЛЯ: Вебхук и Пароль для удаления (компактная версия) -->
+            <div class="preview-options compact" id="webhookField" style="display: none;">
+                <div class="compact-field">
+                    <div class="field-header">
+                        <span class="label-icon">🔗</span>
+                        <span class="field-label">Webhook URL</span>
+                        <button type="button" class="info-btn" onclick="showInfo('webhook')" title="Что это?">i</button>
                     </div>
-                </div>
+                    <input type="url"
+                           id="webhookUrl"
+                           name="webhook_url"
+                           class="compact-input"
+                           placeholder="https://url-you-api.com - url ВАШЕГО api, если хотите ограничить доступ к файлу"
+                           minlength="4"
+                           maxlength="1024">
+                    <div id="webhookInfo" class="info-popup hidden">
+                        <div class="info-content">
+                            <strong>🔗 Webhook URL</strong>
+                            <p>Ссылка на ваш внешний API для контроля доступа к файлу.</p>
 
-                <div class="preview-container" id="previewContainer">
-                    <div class="preview-placeholder">Загрузка предпросмотра...</div>
-                </div>
-
-                <!-- НОВЫЕ ПОЛЯ: Вебхук и Пароль для удаления (компактная версия) -->
-                <div class="preview-options compact" id="webhookField" style="display: none;">
-                    <div class="compact-field">
-                        <div class="field-header">
-                            <span class="label-icon">🔗</span>
-                            <span class="field-label">Webhook URL</span>
-                            <button type="button" class="info-btn" onclick="showInfo('webhook')" title="Что это?">i</button>
-                        </div>
-                        <input type="url"
-                               id="webhookUrl"
-                               name="webhook_url"
-                               class="compact-input"
-                               placeholder="https://example.com или текст"
-                               minlength="4"
-                               maxlength="1024">
-                        <div id="webhookInfo" class="info-popup hidden">
-                            <div class="info-content">
-                                <strong>🔗 Webhook URL</strong>
-                                <p>Будет вызван при доступе к файлу. Можно указать любой текст от 4 до 1024 символов.</p>
-                                <span class="info-close" onclick="hideInfo('webhook')">✕</span>
+                            <div class="info-section">
+                                <strong>🎯 Зачем нужно:</strong>
+                                <ul>
+                                    <li>Ограничить доступ только для определённых пользователей</li>
+                                    <li>Привязать файл к номеру заказа, ID клиента или сессии</li>
+                                    <li>Интегрировать с вашей системой авторизации</li>
+                                    <li>Отслеживать попытки доступа к файлу</li>
+                                </ul>
                             </div>
-                        </div>
-                    </div>
-                </div>
 
-                <div class="preview-options compact" id="passwordField" style="display: none;">
-                    <div class="compact-field">
-                        <div class="field-header">
-                            <span class="label-icon">🔒</span>
-                            <span class="field-label">Пароль для удаления</span>
-                            <button type="button" class="info-btn" onclick="showInfo('password')" title="Что это?">i</button>
-                        </div>
-                        <input type="password"
-                               id="deletePassword"
-                               name="delete_password"
-                               class="compact-input"
-                               placeholder="Придумайте пароль"
-                               minlength="4"
-                               maxlength="16">
-                        <div id="passwordInfo" class="info-popup hidden">
-                            <div class="info-content">
-                                <strong>🔒 Пароль для удаления</strong>
-                                <p>Потребуется при удалении файла. Длина: от 4 до 16 символов.</p>
-                                <span class="info-close" onclick="hideInfo('password')">✕</span>
+                            <div class="info-section">
+                                <strong>🔍 Как это работает:</strong>
+                                <ol>
+                                    <li>При каждой попытке открыть файл ASPIC отправляет GET-запрос на ваш URL</li>
+                                    <li>В запрос автоматически добавляются все параметры из ссылки (например, <code>?order_id=123&user=john</code>)</li>
+                                    <li>Ваш API должен вернуть JSON: <code>{"allowed": "1"}</code> — доступ разрешён, <code>{"allowed": "0"}</code> — доступ
+                                        запрещён
+                                    </li>
+                                </ol>
                             </div>
+
+                            <div class="info-section">
+                                <strong>📌 Пример:</strong>
+                                <p>Если вы укажете <code>https://api.example.com/check</code>, а ссылка будет <code>/view/abc123?order_id=INV-001</code>, то
+                                    ASPIC вызовет:</p>
+                                <code class="example-code">https://api.example.com/check?token=abc123&order_id=INV-001&client_ip=1.2.3.4</code>
+                            </div>
+
+                            <div class="info-note">
+                                <strong>⚠️ Важно:</strong> URL должен начинаться с <code>http://</code> или <code>https://</code>
+                            </div>
+
+                            <span class="info-close" onclick="hideInfo('webhook')">✕</span>
                         </div>
                     </div>
                 </div>
-                <!-- КОНЕЦ НОВЫХ ПОЛЕЙ -->
-
-                <div class="preview-actions">
-                    <button class="btn btn-primary" id="confirmBtn">
-                        <span class="btn-icon">✨</span>
-                        <span class="btn-text">Создать ссылку</span>
-                    </button>
-                    <button class="btn btn-secondary" id="cancelBtn">
-                        <span class="btn-icon">←</span>
-                        <span class="btn-text">Другой файл</span>
-                    </button>
-                </div>
-
-                <div class="loading-indicator hidden" id="loadingIndicator">
-                    <div class="spinner"></div>
-                    <span>Сохранение файла...</span>
-                </div>
             </div>
 
-            <!-- СОСТОЯНИЕ 3: РЕЗУЛЬТАТ -->
-            <div id="state-result" class="state hidden">
-                <div class="result-card">
-                    <div class="success-animation">✅</div>
-                    <h2 class="result-title">Файл сохранен!</h2>
-                    <p class="result-subtitle">Постоянная ссылка для просмотра и скачивания:</p>
-
-                    <div class="link-box">
-                        <input type="text" id="resultLink" class="link-input" readonly value="">
-                        <button class="btn-copy" id="copyBtn" title="Копировать">📋</button>
+            <div class="preview-options compact" id="passwordField" style="display: none;">
+                <div class="compact-field">
+                    <div class="field-header">
+                        <span class="label-icon">🔒</span>
+                        <span class="field-label">Пароль для удаления</span>
+                        <button type="button" class="info-btn" onclick="showInfo('password')" title="Что это?">i</button>
                     </div>
+                    <input type="password"
+                           id="deletePassword"
+                           name="delete_password"
+                           class="compact-input"
+                           placeholder="Придумайте пароль, если хотите защитить файл от удаления"
+                           minlength="4"
+                           maxlength="16">
+                    <div id="passwordInfo" class="info-popup hidden">
+                        <div class="info-content">
+                            <strong>🔒 Пароль для удаления</strong>
 
-                    <div class="result-actions">
-                        <a href="#" id="viewFileLink" class="btn btn-primary" target="_blank">Открыть файл</a>
-                        <button class="btn btn-link" id="newUploadBtn">
-                            <span class="btn-icon">⬆️</span>
-                            Загрузить новый файл
-                        </button>
+                            <div class="info-section">
+                                <strong>🎯 Зачем нужно:</strong>
+                                <ul>
+                                    <li>Защитить файл от случайного или злонамеренного удаления</li>
+                                    <li>Только тот, кто знает пароль, сможет удалить файл</li>
+                                    <li>Остальные смогут только просматривать и комментировать</li>
+                                </ul>
+                            </div>
+
+                            <div class="info-section">
+                                <strong>🔍 Как это работает:</strong>
+                                <ol>
+                                    <li>Вы устанавливаете пароль при загрузке файла</li>
+                                    <li>При попытке удаления сайт запросит этот пароль</li>
+                                    <li>Без правильного пароля удалить файл невозможно</li>
+                                </ol>
+                            </div>
+
+                            <div class="info-note">
+                                <strong>📌 Требования:</strong> Длина от 4 до 16 символов. Можно использовать буквы, цифры и спецсимволы.
+                            </div>
+
+                            <div class="info-note" style="border-left-color: var(--warning);">
+                                <strong>⚠️ Внимание:</strong> Используйте только для базовой защиты, не для критически важных данных.
+                            </div>
+
+                            <span class="info-close" onclick="hideInfo('password')">✕</span>
+                        </div>
                     </div>
-
-                    <p class="disclaimer">Файл будет храниться, пока кто-то не нажмёт «Удалить» на его странице</p>
                 </div>
             </div>
-        </main>
+            <!-- КОНЕЦ НОВЫХ ПОЛЕЙ -->
 
-        <footer class="app-footer">
-            <p>ASPIC — A Simple Public Image/File Cloud · <a href="https://github.com/dneupokoev/aspic" target="_blank" rel="noopener">GitHub</a></p>
-        </footer>
-    </div>
+            <div class="preview-actions">
+                <button class="btn btn-primary" id="confirmBtn">
+                    <span class="btn-icon">✨</span>
+                    <span class="btn-text">Создать ссылку</span>
+                </button>
+                <button class="btn btn-secondary" id="cancelBtn">
+                    <span class="btn-icon">←</span>
+                    <span class="btn-text">Другой файл</span>
+                </button>
+            </div>
 
-    <script src="/static/app.js"></script>
+            <div class="loading-indicator hidden" id="loadingIndicator">
+                <div class="spinner"></div>
+                <span>Сохранение файла...</span>
+            </div>
+        </div>
+
+        <!-- СОСТОЯНИЕ 3: РЕЗУЛЬТАТ -->
+        <div id="state-result" class="state hidden">
+            <div class="result-card">
+                <div class="success-animation">✅</div>
+                <h2 class="result-title">Файл сохранен!</h2>
+                <p class="result-subtitle">Постоянная ссылка для просмотра и скачивания:</p>
+
+                <div class="link-box">
+                    <input type="text" id="resultLink" class="link-input" readonly value="">
+                    <button class="btn-copy" id="copyBtn" title="Копировать">📋</button>
+                </div>
+
+                <div class="result-actions">
+                    <a href="#" id="viewFileLink" class="btn btn-primary" target="_blank">Открыть файл</a>
+                    <button class="btn btn-link" id="newUploadBtn">
+                        <span class="btn-icon">⬆️</span>
+                        Загрузить новый файл
+                    </button>
+                </div>
+
+                <p class="disclaimer">Файл будет храниться, пока кто-то не нажмёт «Удалить» на его странице</p>
+            </div>
+        </div>
+    </main>
+
+    <footer class="app-footer">
+        <p>ASPIC — A Simple Public Image/File Cloud · <a href="https://github.com/dneupokoev/aspic" target="_blank" rel="noopener">GitHub</a></p>
+    </footer>
+</div>
+
+<script src="/static/app.js"></script>
 </body>
 </html>

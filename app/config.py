@@ -25,7 +25,14 @@ TOKEN_LENGTH = int(os.getenv('TOKEN_LENGTH', 8))
 # ============================================
 WEBHOOK_TIMEOUT = int(os.getenv('WEBHOOK_TIMEOUT', 5))  # Таймаут в секундах
 WEBHOOK_CACHE_TTL = int(os.getenv('WEBHOOK_CACHE_TTL', 300))  # Время кэширования ответов (5 минут)
-WEBHOOK_RATE_LIMIT = os.getenv('WEBHOOK_RATE_LIMIT', '10/minute')  # Лимит вызовов вебхуков
+
+# ============================================
+# RATE LIMITING ДЛЯ ВЕБХУКОВ
+# ============================================
+# Лимит вызовов одного вебхука в минуту
+WEBHOOK_RATE_LIMIT_PER_URL = int(os.getenv('WEBHOOK_RATE_LIMIT_PER_URL', 10))
+# Лимит вызовов вебхуков с одного IP в минуту
+WEBHOOK_RATE_LIMIT_PER_IP = int(os.getenv('WEBHOOK_RATE_LIMIT_PER_IP', 30))
 
 # ============================================
 # БЕЗОПАСНОСТЬ ВЕБХУКОВ
