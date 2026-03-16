@@ -261,45 +261,49 @@ python -m app.main
 ## 🔧 Nginx конфигурация
 
 ```nginx
+# Редирект с HTTP на HTTPS
 server {
     listen 80;
-    server_name aspic.example.com;
+    listen [::]:80;
+    server_name aspic.YOU-DOMAIN.com;
     return 301 https://$host$request_uri;
 }
 
+# Основной HTTPS сервер
 server {
     listen 443 ssl http2;
-    server_name aspic.example.com;
-    
-    ssl_certificate /etc/letsencrypt/live/aspic.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/aspic.example.com/privkey.pem;
-    
-    client_max_body_size 500M;
-    
-    # Заголовки безопасности
+    listen [::]:443 ssl http2;
+    server_name aspic.YOU-DOMAIN.com;
+
+    # SSL-сертификаты (используем существующий)
+    ssl_certificate /etc/letsencrypt/live/aspic.YOU-DOMAIN.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/aspic.YOU-DOMAIN.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Заголовки безопасности (как в вашем примере)
     add_header X-Content-Type-Options "nosniff";
     add_header X-Frame-Options "SAMEORIGIN";
     add_header X-XSS-Protection "1; mode=block";
-    
+
+    # Максимальный размер загружаемого файла (для ASPIC)
+    client_max_body_size 500M;
+
+    # Проксирование на ASPIC (порт 15191)
     location / {
         proxy_pass http://127.0.0.1:15191;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # ВАЖНО: для открытия текстовых файлов в браузере
+
+        # ВАЖНО: Убираем заголовок Content-Disposition, который может добавлять Nginx
         proxy_hide_header Content-Disposition;
-        
+
+        # Увеличиваем таймауты для больших файлов
         proxy_connect_timeout 3600s;
         proxy_send_timeout 3600s;
         proxy_read_timeout 3600s;
-    }
-    
-    location /static/ {
-        alias /opt/dix/aspic/app/static/;
-        expires 30d;
-        access_log off;
     }
 }
 ```
@@ -333,4 +337,4 @@ python app/cleanup.py
 
 ## 📝 Лицензия
 
-**ASPIC** — файлы живут «вечно», пока кто-то не нажмёт «Удалить» (или внешний API не запретит доступ).
+**ASPIC** — файлы живут «вечно», пока кто-то не нажмёт «Удалить»
