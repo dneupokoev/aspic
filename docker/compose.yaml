@@ -10,6 +10,8 @@ services:
       - "127.0.0.1:15191:15191"
     volumes:
       - ./data:/opt/dix/aspic/data
+    env_file:
+      - .env
     environment:
       - UPLOAD_DIR=/opt/dix/aspic/data/files
       - MAX_FILE_SIZE=104857600
@@ -19,3 +21,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - aspic_network
+
+networks:
+  aspic_network:
+    driver: bridge
