@@ -1,5 +1,4 @@
 services:
-
   aspic:
     build:
       context: ./
@@ -10,6 +9,8 @@ services:
       - "127.0.0.1:15191:15191"
     volumes:
       - ./data:/opt/dix/aspic/data
+      # Пробрасываем статику для nginx:
+      - ./app/static:/opt/dix/aspic/app/static
     env_file:
       - .env
     environment:
