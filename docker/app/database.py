@@ -40,11 +40,11 @@ async def init_db(db_path: str = DB_PATH):
                     size INTEGER NOT NULL,
                     file_path TEXT NOT NULL,
                     upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    views INTEGER DEFAULT 0,
-                    downloads INTEGER DEFAULT 0,
-                    deleted BOOLEAN DEFAULT 0,
-                    delete_date TIMESTAMP,
-                    delete_reason TEXT,
+                    views INTEGER DEFAULT 0, -- Количество просмотров
+                    downloads INTEGER DEFAULT 0, -- Количество скачиваний
+                    deleted BOOLEAN DEFAULT 0, -- 1 = Помечено на удаление
+                    delete_date TIMESTAMP, -- Дата и время пометки на удаление 
+                    delete_reason TEXT, -- Причина удаления (заполняется в интерфейсе или через api) 
                     last_view_date DATE, -- Дата последнего просмотра (без времени для производительности)
                     last_download_date DATE, -- Дата последнего скачивания (без времени для производительности)
                     webhook_url TEXT DEFAULT '', -- URL вебхука для вызова при попытке доступа к файлу
@@ -65,14 +65,17 @@ async def init_db(db_path: str = DB_PATH):
                 )
             ''')
 
+            # Оптимизированные индексы для новой БД
             await db.execute('CREATE INDEX idx_files_token ON files(token)')
             await db.execute('CREATE INDEX idx_files_deleted ON files(deleted)')
-            await db.execute('CREATE INDEX idx_files_last_view_date ON files(last_view_date)')
-            await db.execute('CREATE INDEX idx_files_last_download_date ON files(last_download_date)')
+            await db.execute('CREATE INDEX idx_files_cleanup ON files(delete_date) WHERE deleted = 1')
+            await db.execute('CREATE INDEX idx_files_active_view ON files(last_view_date) WHERE deleted = 0')
+            await db.execute('CREATE INDEX idx_files_active_download ON files(last_download_date) WHERE deleted = 0')
+            await db.execute('CREATE INDEX idx_files_webhook ON files(webhook_url) WHERE webhook_url != ""')
             await db.execute('CREATE INDEX idx_comments_file_token ON comments(file_token)')
 
             await db.commit()
-            print("✅ Новая база данных создана")
+            print("✅ Новая база данных создана с оптимизированными индексами")
         else:
             # Проверяем структуру таблицы files
             files_columns = await get_table_info(db, "files")
@@ -110,16 +113,59 @@ async def init_db(db_path: str = DB_PATH):
                 print("🔄 Обновление таблицы files: добавляем поле delete_password...")
                 await db.execute("ALTER TABLE files ADD COLUMN delete_password TEXT DEFAULT ''")
 
-            # Проверяем и создаем новые индексы
-            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_files_last_view_date'")
+            # === ОПТИМИЗАЦИЯ ИНДЕКСОВ ===
+
+            # 1. Удаляем старые неоптимальные индексы (если они есть)
+            old_indexes = [
+                'idx_files_last_view_date',
+                'idx_files_last_download_date'
+            ]
+
+            for index_name in old_indexes:
+                cursor = await db.execute(f"SELECT name FROM sqlite_master WHERE type='index' AND name='{index_name}'")
+                index_exists = await cursor.fetchone()
+                if index_exists:
+                    print(f"🔄 Удаляем старый индекс {index_name}...")
+                    await db.execute(f"DROP INDEX {index_name}")
+
+            # 2. Создаем новые оптимизированные индексы (если их нет)
+
+            # Индекс для очистки удаленных файлов (только для deleted=1)
+            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_files_cleanup'")
+            index_exists = await cursor.fetchone()
+            if not index_exists and 'delete_date' in files_columns:
+                print("🔄 Создаем индекс для очистки idx_files_cleanup...")
+                await db.execute("CREATE INDEX idx_files_cleanup ON files(delete_date) WHERE deleted = 1")
+
+            # Индекс для просмотров активных файлов (только для deleted=0)
+            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_files_active_view'")
             index_exists = await cursor.fetchone()
             if not index_exists and 'last_view_date' in files_columns:
-                await db.execute("CREATE INDEX idx_files_last_view_date ON files(last_view_date)")
+                print("🔄 Создаем индекс для просмотров idx_files_active_view...")
+                await db.execute("CREATE INDEX idx_files_active_view ON files(last_view_date) WHERE deleted = 0")
 
-            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_files_last_download_date'")
+            # Индекс для скачиваний активных файлов (только для deleted=0)
+            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_files_active_download'")
             index_exists = await cursor.fetchone()
             if not index_exists and 'last_download_date' in files_columns:
-                await db.execute("CREATE INDEX idx_files_last_download_date ON files(last_download_date)")
+                print("🔄 Создаем индекс для скачиваний idx_files_active_download...")
+                await db.execute("CREATE INDEX idx_files_active_download ON files(last_download_date) WHERE deleted = 0")
+
+            # Индекс для вебхуков (только если URL не пустой)
+            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_files_webhook'")
+            index_exists = await cursor.fetchone()
+            if not index_exists and 'webhook_url' in files_columns:
+                print("🔄 Создаем индекс для вебхуков idx_files_webhook...")
+                await db.execute("CREATE INDEX idx_files_webhook ON files(webhook_url) WHERE webhook_url != ''")
+
+            # Проверяем старые индексы на всякий случай (могли остаться)
+            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_files_last_view_date'")
+            if await cursor.fetchone():
+                print("⚠️ Старый индекс idx_files_last_view_date все еще существует")
+
+            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_files_last_download_date'")
+            if await cursor.fetchone():
+                print("⚠️ Старый индекс idx_files_last_download_date все еще существует")
 
             # Проверяем таблицу comments
             comments_columns = await get_table_info(db, "comments")
@@ -132,7 +178,7 @@ async def init_db(db_path: str = DB_PATH):
                 await db.execute("ALTER TABLE comments ADD COLUMN author TEXT DEFAULT 'ЗЛОБНЫЙ_АНОНИМ'")
 
             await db.commit()
-            print("✅ Таблицы обновлены")
+            print("✅ Таблицы обновлены, индексы оптимизированы")
 
 
 async def save_file_metadata(
