@@ -21,10 +21,18 @@ MAX_FILE_SIZE = int(os.getenv('MAX_FILE_SIZE', 104857600))  # 100 MB
 TOKEN_LENGTH = int(os.getenv('TOKEN_LENGTH', 8))
 
 # ============================================
+# НАСТРОЙКИ ХРАНЕНИЯ ФАЙЛОВ
+# ============================================
+# Бэкенд хранения: local (пока только локальный диск)
+STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local').lower()
+
+# ============================================
 # НАСТРОЙКИ ДЛЯ ВЕБХУКОВ
 # ============================================
-WEBHOOK_TIMEOUT = int(os.getenv('WEBHOOK_TIMEOUT', 5))  # Таймаут в секундах
-WEBHOOK_CACHE_TTL = int(os.getenv('WEBHOOK_CACHE_TTL', 300))  # Время кэширования ответов (5 минут)
+# Таймаут в секундах
+WEBHOOK_TIMEOUT = int(os.getenv('WEBHOOK_TIMEOUT', 5))
+# Время кэширования ответов (5 минут)
+WEBHOOK_CACHE_TTL = int(os.getenv('WEBHOOK_CACHE_TTL', 300))
 
 # ============================================
 # RATE LIMITING ДЛЯ ВЕБХУКОВ
@@ -37,7 +45,6 @@ WEBHOOK_RATE_LIMIT_PER_IP = int(os.getenv('WEBHOOK_RATE_LIMIT_PER_IP', 30))
 # ============================================
 # БЕЗОПАСНОСТЬ ВЕБХУКОВ
 # ============================================
-
 # Блокировка внутренних/приватных IP (защита от SSRF)
 BLOCKED_IP_RANGES = [
     '127.0.0.0/8',      # localhost
@@ -75,7 +82,6 @@ WEBHOOK_MAX_HEADERS_SIZE = int(os.getenv('WEBHOOK_MAX_HEADERS_SIZE', 8192))  # 8
 # ============================================
 # ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ПУТИ С ДАТОЙ
 # ============================================
-
 def get_dated_upload_path(filename: str = None) -> Path:
     """
     Возвращает путь для сохранения файла с подпапками YYYY/MM.
@@ -84,7 +90,6 @@ def get_dated_upload_path(filename: str = None) -> Path:
     now = datetime.now()
     year = str(now.year)
     month = f"{now.month:02d}"
-
     # Базовый путь с годом и месяцем
     dated_path = Path(UPLOAD_DIR) / year / month
 
@@ -95,7 +100,6 @@ def get_dated_upload_path(filename: str = None) -> Path:
         return dated_path / filename
     return dated_path
 
-
 # ============================================
 # РАСШИРЕННЫЙ СПИСОК ПОДДЕРЖИВАЕМЫХ MIME-ТИПОВ
 # ============================================
@@ -104,17 +108,14 @@ DEFAULT_MIMES = [
     'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
     'image/svg+xml', 'image/bmp', 'image/tiff', 'image/x-icon',
     'image/heic', 'image/heif', 'image/avif',
-
     # Видео
     'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime',
     'video/x-msvideo', 'video/x-matroska', 'video/mpeg', 'video/3gpp',
     'video/x-ms-wmv', 'video/x-flv',
-
     # Аудио
     'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/webm',
     'audio/aac', 'audio/flac', 'audio/mp4', 'audio/x-midi',
     'audio/x-wav', 'audio/x-m4a', 'audio/x-matroska',
-
     # Документы
     'application/pdf',
     'text/plain', 'text/html', 'text/css', 'text/javascript',
@@ -129,7 +130,6 @@ DEFAULT_MIMES = [
     'application/vnd.oasis.opendocument.text',  # .odt
     'application/vnd.oasis.opendocument.spreadsheet',  # .ods
     'application/vnd.oasis.opendocument.presentation',  # .odp
-
     # Код и данные
     'application/json', 'application/xml', 'application/x-yaml',
     'text/x-python', 'text/x-sql', 'text/x-java-source',
@@ -137,21 +137,17 @@ DEFAULT_MIMES = [
     'text/x-go', 'text/x-rust', 'text/x-swift',
     'application/javascript', 'application/typescript',
     'application/x-sh', 'application/x-bash', 'application/x-perl',
-
     # Архивы
     'application/zip', 'application/x-zip-compressed',
     'application/x-rar-compressed', 'application/x-7z-compressed',
     'application/x-tar', 'application/gzip', 'application/x-bzip2',
     'application/x-brotli', 'application/x-xz', 'application/zstd',
-
     # Электронные книги
     'application/epub+zip', 'application/x-mobipocket-ebook',
     'application/vnd.amazon.ebook', 'application/x-fictionbook+xml',
-
     # Чертежи и 3D
     'application/x-dwg', 'application/x-dxf', 'model/stl',
     'application/x-step', 'model/obj', 'model/3mf',
-
     # Другое
     'application/octet-stream', 'application/x-www-form-urlencoded',
     'application/x-iso9660-image', 'application/x-cd-image',
@@ -165,16 +161,13 @@ RATE_LIMIT_UPLOAD = os.getenv('RATE_LIMIT_UPLOAD', '5/minute')
 RATE_LIMIT_COMMENT = os.getenv('RATE_LIMIT_COMMENT', '3/minute')
 RATE_LIMIT_DELETE = os.getenv('RATE_LIMIT_DELETE', '2/minute')
 
-
 # ============================================
 # ДИНАМИЧЕСКИЕ СООБЩЕНИЯ
 # ============================================
-
 def get_file_size_limit_text() -> str:
     """Возвращает текст с ограничением по размеру файла."""
     size_mb = MAX_FILE_SIZE // 1048576
     return f"До {size_mb} МБ"
-
 
 def get_allowed_formats_text() -> str:
     """Возвращает текст с поддерживаемыми форматами."""
@@ -184,19 +177,16 @@ def get_allowed_formats_text() -> str:
         'image/gif': 'GIF', 'image/webp': 'WEBP', 'image/svg+xml': 'SVG',
         'image/bmp': 'BMP', 'image/tiff': 'TIFF', 'image/x-icon': 'ICO',
         'image/heic': 'HEIC', 'image/heif': 'HEIF', 'image/avif': 'AVIF',
-
         # Видео
         'video/mp4': 'MP4', 'video/webm': 'WEBM', 'video/ogg': 'OGV',
         'video/quicktime': 'MOV', 'video/x-msvideo': 'AVI',
         'video/x-matroska': 'MKV', 'video/mpeg': 'MPEG',
         'video/3gpp': '3GP', 'video/x-ms-wmv': 'WMV', 'video/x-flv': 'FLV',
-
         # Аудио
         'audio/mpeg': 'MP3', 'audio/ogg': 'OGG', 'audio/wav': 'WAV',
         'audio/webm': 'WEBM', 'audio/aac': 'AAC', 'audio/flac': 'FLAC',
         'audio/mp4': 'M4A', 'audio/x-midi': 'MIDI',
         'audio/x-wav': 'WAV', 'audio/x-m4a': 'M4A', 'audio/x-matroska': 'MKA',
-
         # Документы
         'application/pdf': 'PDF', 'text/plain': 'TXT', 'text/html': 'HTML',
         'text/css': 'CSS', 'text/javascript': 'JS', 'text/markdown': 'MD',
@@ -211,7 +201,6 @@ def get_allowed_formats_text() -> str:
         'application/vnd.oasis.opendocument.text': 'ODT',
         'application/vnd.oasis.opendocument.spreadsheet': 'ODS',
         'application/vnd.oasis.opendocument.presentation': 'ODP',
-
         # Код и данные
         'application/json': 'JSON', 'application/xml': 'XML',
         'application/x-yaml': 'YAML', 'text/x-python': 'PY',
@@ -221,18 +210,15 @@ def get_allowed_formats_text() -> str:
         'text/x-swift': 'SWIFT', 'application/javascript': 'JS',
         'application/typescript': 'TS', 'application/x-sh': 'SH',
         'application/x-bash': 'BASH', 'application/x-perl': 'PL',
-
         # Архивы
         'application/zip': 'ZIP', 'application/x-zip-compressed': 'ZIP',
         'application/x-rar-compressed': 'RAR', 'application/x-7z-compressed': '7Z',
         'application/x-tar': 'TAR', 'application/gzip': 'GZ',
         'application/x-bzip2': 'BZ2', 'application/x-brotli': 'BR',
         'application/x-xz': 'XZ', 'application/zstd': 'ZST',
-
         # Электронные книги
         'application/epub+zip': 'EPUB', 'application/x-mobipocket-ebook': 'MOBI',
         'application/vnd.amazon.ebook': 'AZW', 'application/x-fictionbook+xml': 'FB2',
-
         # Чертежи и 3D
         'application/x-dwg': 'DWG', 'application/x-dxf': 'DXF',
         'model/stl': 'STL', 'application/x-step': 'STEP',
@@ -248,13 +234,11 @@ def get_allowed_formats_text() -> str:
     unique_formats = sorted(list(set(formats)))
     return ', '.join(unique_formats)
 
-
 def get_upload_hint_text() -> str:
     """Возвращает полный текст подсказки для загрузки."""
     size_text = get_file_size_limit_text()
     formats_text = get_allowed_formats_text()
     return f"{size_text}, поддерживаются: {formats_text}"
-
 
 def get_not_found_message() -> str:
     """Возвращает сообщение о ненайденном файле."""

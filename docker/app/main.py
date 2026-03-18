@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Optional, List, Dict
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-
 import magic
 from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
@@ -19,6 +18,9 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import aiofiles
+
+# Импортируем хранилище
+from app.storage.factory import get_storage_backend
 
 from app.database import (
     init_db, save_file_metadata, get_file_metadata,
@@ -35,7 +37,8 @@ from app.config import (
     RATE_LIMIT_UPLOAD, RATE_LIMIT_COMMENT, RATE_LIMIT_DELETE,
     WEBHOOK_TIMEOUT, WEBHOOK_CACHE_TTL,
     get_upload_hint_text, get_not_found_message, get_file_size_limit_text,
-    get_allowed_formats_text, get_dated_upload_path
+    get_allowed_formats_text, get_dated_upload_path,
+    STORAGE_BACKEND,
 )
 
 # Для работы с изображениями
@@ -60,7 +63,6 @@ def can_increment_view(token: str, ip: str) -> bool:
     """
     key = f"{token}:{ip}"
     now = datetime.now()
-
     if key in view_tracker:
         last_view = view_tracker[key]
         if now - last_view < timedelta(hours=1):
@@ -93,6 +95,15 @@ def cleanup_old_views():
 async def lifespan(app: FastAPI):
     # Startup
     await init_db(DB_PATH)
+
+    # Инициализация хранилища файлов
+    global file_storage
+    storage_config = {
+        'STORAGE_BACKEND': STORAGE_BACKEND,
+        'UPLOAD_DIR': UPLOAD_DIR,
+    }
+    file_storage = get_storage_backend(storage_config)
+
     print(f"✅ ASPIC запущен на порту {PORT}")
     print(f"📁 Постоянное хранилище: {UPLOAD_DIR}")
     print(f"📁 Временное хранилище: {PREVIEW_DIR}")
@@ -151,7 +162,6 @@ async def not_found_handler(request: Request, exc):
             status_code=404,
             content={"detail": "Ресурс не найден"}
         )
-
     # Для всех остальных страниц - перенаправляем на главную с сообщением об ошибке
     return RedirectResponse(url="/?error=not_found", status_code=303)
 
@@ -243,7 +253,6 @@ async def get_image_info(file_path: Path) -> Optional[Dict]:
     """Получает информацию об изображении."""
     if not HAS_PIL:
         return None
-
     try:
         with Image.open(file_path) as img:
             width, height = img.size
@@ -258,9 +267,9 @@ async def get_image_info(file_path: Path) -> Optional[Dict]:
 
 
 async def verify_file_access(
-    token: str,
-    request: Request,
-    check_view: bool = False
+        token: str,
+        request: Request,
+        check_view: bool = False
 ) -> Optional[Dict]:
     """
     Проверяет доступ к файлу с учетом вебхука.
@@ -295,8 +304,8 @@ async def verify_file_access(
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, error: str = None):
     user_id = generate_user_id(request)
-
     error_message = None
+
     if error == "not_found":
         error_message = get_not_found_message()
     elif error == "deleted":
@@ -336,7 +345,6 @@ async def view_file(request: Request, token: str):
     """Страница с предпросмотром и информацией о файле."""
     # Проверяем доступ к файлу (и увеличиваем счетчик просмотров)
     file_info = await verify_file_access(token, request, check_view=True)
-
     if not file_info:
         return RedirectResponse(url=f"/?error=not_found", status_code=303)
 
@@ -388,7 +396,6 @@ async def preview_file(request: Request, token: str):
     """Отдает файл для предпросмотра (НЕ увеличивает просмотры)."""
     # Проверяем доступ к файлу (без увеличения счетчика)
     file_info = await verify_file_access(token, request, check_view=False)
-
     if not file_info:
         # Если файл не найден или доступ запрещен, отдаем заглушку
         oops_path = Path("app/static/oops_img.jpg")
@@ -401,9 +408,10 @@ async def preview_file(request: Request, token: str):
         else:
             raise HTTPException(status_code=404, detail="Файл не найден")
 
-    file_path = Path(file_info['file_path'])
-    if not file_path.exists():
-        # Если файл не найден на диске, отдаем заглушку
+    # Используем абстракцию хранилища — теперь get() возвращает путь как строку
+    file_path = await file_storage.get(token, file_info['filename'])
+    if not file_path:
+        # Если файл не найден в хранилище, отдаем заглушку
         oops_path = Path("app/static/oops_img.jpg")
         if oops_path.exists():
             return FileResponse(
@@ -412,10 +420,10 @@ async def preview_file(request: Request, token: str):
                 headers={"Content-Disposition": "inline"}
             )
         else:
-            raise HTTPException(status_code=404, detail="Файл не найден на диске")
+            raise HTTPException(status_code=404, detail="Файл не найден в хранилище")
 
     return FileResponse(
-        path=file_path,
+        path=file_path,  # Теперь это строка-путь
         media_type=file_info['mime_type'],
         filename=file_info['filename'],
         headers={"Content-Disposition": "inline"}
@@ -430,19 +438,19 @@ async def download_file(request: Request, token: str):
     """Скачивание файла с увеличением счетчика скачиваний."""
     # Проверяем доступ к файлу (без увеличения просмотров)
     file_info = await verify_file_access(token, request, check_view=False)
-
     if not file_info:
         raise HTTPException(status_code=404, detail="Файл не найден")
 
     # Увеличиваем счетчик скачиваний
     await increment_download_count(token)
 
-    file_path = Path(file_info['file_path'])
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Файл не найден на диске")
+    # Используем абстракцию хранилища — теперь get() возвращает путь как строку
+    file_path = await file_storage.get(token, file_info['filename'])
+    if not file_path:
+        raise HTTPException(status_code=404, detail="Файл не найден в хранилище")
 
     return FileResponse(
-        path=file_path,
+        path=file_path,  # Теперь это строка-путь
         filename=file_info['filename'],
         media_type='application/octet-stream'
     )
@@ -455,7 +463,6 @@ async def download_file(request: Request, token: str):
 async def get_file_info(request: Request, token: str):
     """API для получения информации о файле (с проверкой доступа)."""
     file_info = await verify_file_access(token, request, check_view=False)
-
     if not file_info:
         raise HTTPException(status_code=404, detail="Файл не найден")
 
@@ -472,7 +479,7 @@ async def get_file_info(request: Request, token: str):
         "downloads": file_info['downloads'],
         "has_webhook": bool(file_info.get('webhook_url')),
         "page_url": f"/view/{token}",
-        "preview_url": f"/file/{token}",
+        "preview_url": file_storage.get_public_path(token, file_info['filename']),
         "download_url": f"/download/{token}"
     }
 
@@ -516,22 +523,18 @@ async def create_preview(
             '.ppt': 'application/vnd.ms-powerpoint',
             '.pdf': 'application/pdf',
             '.txt': 'text/plain',
-
             # Изображения
             '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
             '.png': 'image/png',
             '.gif': 'image/gif',
             '.webp': 'image/webp',
             '.svg': 'image/svg+xml',
-
             # Видео
             '.mp4': 'video/mp4',
             '.webm': 'video/webm',
-
             # Аудио
             '.mp3': 'audio/mpeg',
             '.wav': 'audio/wav',
-
             # Архивы
             '.zip': 'application/zip',
             '.rar': 'application/x-rar-compressed',
@@ -582,6 +585,7 @@ async def create_preview(
 async def get_preview_file(filename: str):
     if ".." in filename or "/" in filename:
         raise HTTPException(status_code=400, detail="Некорректное имя файла")
+
     file_path = Path(PREVIEW_DIR) / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Файл предпросмотра не найден")
@@ -608,6 +612,9 @@ async def get_preview_file(filename: str):
     )
 
 
+# ============================================
+# ПОДТВЕРЖДЕНИЕ ЗАГРУЗКИ
+# ============================================
 @app.post("/api/confirm-upload")
 @limiter.limit(RATE_LIMIT_UPLOAD)
 async def confirm_upload(
@@ -640,19 +647,21 @@ async def confirm_upload(
     temp_path = preview_files[0]
     token = generate_token()
     ext = temp_path.suffix
-    permanent_filename = f"{token}{ext}"
-    permanent_path = get_dated_upload_path(permanent_filename)
 
+    # Используем абстракцию хранилища для сохранения
     try:
         if text_content is not None and mime_type.startswith('text/'):
+            # Если текст редактировался - сохраняем новое содержимое
             file_content = text_content.encode('utf-8')
-            async with aiofiles.open(str(permanent_path), 'wb') as f:
-                await f.write(file_content)
             size = len(file_content)
-            print(f"✅ Файл создан из редактированного текста: {permanent_path}")
+            public_path = await file_storage.save(token, file_content, filename, mime_type)
+            print(f"✅ Файл создан из редактированного текста: {public_path}")
         else:
-            shutil.move(str(temp_path), str(permanent_path))
-            print(f"✅ Файл перемещен: {temp_path} -> {permanent_path}")
+            # Читаем временный файл и сохраняем через абстракцию
+            async with aiofiles.open(temp_path, 'rb') as f:
+                file_content = await f.read()
+            public_path = await file_storage.save(token, file_content, filename, mime_type)
+            print(f"✅ Файл сохранен через storage: {public_path}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении файла: {e}")
 
@@ -662,20 +671,23 @@ async def confirm_upload(
             filename=filename,
             mime_type=mime_type,
             size=size,
-            file_path=str(permanent_path),
+            file_path=public_path,
             webhook_url=webhook_url,
             delete_password=delete_password
         )
         print(f"💾 Метаданные сохранены для токена: {token}")
     except Exception as e:
-        if permanent_path.exists():
-            permanent_path.unlink()
+        # Попытка удалить файл из хранилища при ошибке сохранения метаданных
+        try:
+            await file_storage.delete(token, filename)
+        except:
+            pass
         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении метаданных: {e}")
 
     background_tasks.add_task(cleanup_old_previews)
 
     view_path = f"/view/{token}"
-    file_path = f"/file/{token}"
+    file_path = file_storage.get_public_path(token, filename)
     download_path = f"/download/{token}"
 
     print(f"✅ Созданы пути: view={view_path}, file={file_path}, download={download_path}")
@@ -747,7 +759,6 @@ async def delete_file(
         password_required: str = Form(None)
 ):
     client_ip = request.client.host
-
     if not captcha_store.verify(token, client_ip, captcha_answer):
         return JSONResponse(
             status_code=400,
@@ -794,7 +805,16 @@ async def delete_file(
     if delete_reason and delete_reason.strip():
         await add_comment(token, author.strip(), f"Файл удален. Причина: {delete_reason}", 'deletion_reason')
 
+    # Soft delete в БД
     await mark_file_as_deleted(token, delete_reason)
+
+    # Используем абстракцию хранилища для удаления файла
+    try:
+        await file_storage.delete(token, file_info['filename'])
+        print(f"🗑️ Файл удален из хранилища: {token}")
+    except Exception as e:
+        print(f"⚠️ Не удалось удалить файл из хранилища: {e}")
+        # Не прерываем процесс, т.к. soft delete в БД уже выполнен
 
     return JSONResponse(
         status_code=200,
