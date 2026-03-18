@@ -8,9 +8,11 @@
 ### 📤 Загрузка файлов
 - ✅ **Три способа загрузки**: drag-and-drop, выбор файла или вставка из буфера (Ctrl+V)
 - ✅ **Редактирование текста** перед созданием ссылки при вставке из буфера
-- ✅ Поддержка **всех популярных форматов**: изображения, видео, аудио, документы, архивы, код
+- ✅ **Принимаются любые файлы** — никаких ограничений по типу
 - ✅ **Предпросмотр** перед загрузкой с информацией о файле
+- ✅ **Автоматическое определение MIME-типа** по содержимому
 - ✅ **Обход лимита размера** через секретный параметр (до 4 ГБ)
+- ✅ **Автоматическая структура папок** по месяцам (YYYY/MM)
 
 ### 🔗 Ссылки и доступ
 - ✅ Получение **вечной ссылки** на файл (живёт, пока кто-то не удалит)
@@ -40,11 +42,12 @@
 - ✅ **Rate limiting** для всех действий (загрузка, комментарии, удаление)
 - ✅ **Капча**: обязательна для удаления файлов (защита от ботов)
 - ✅ **Парольная защита**: опциональный пароль для удаления (от 4 до 16 символов)
-- ✅ **Валидация MIME-типов**: проверка по содержимому, а не по расширению
+- ✅ **Валидация MIME-типов**: определение по содержимому, а не по расширению (защита от подделки)
 - ✅ **Soft delete**: файлы помечаются удаленными, но физически удаляются отдельным скриптом
 - ✅ **Изоляция файлов**: автоматическая структура папок по месяцам (YYYY/MM)
 - ✅ **Защита от Path Traversal**: проверка имен файлов при загрузке
 - ✅ **Безопасный обход лимита**: хэш-токен в куке, срок жизни 1 час, защита от подделки
+- ✅ **HTTP-only куки** для user_id
 
 ### 🎨 Интерфейс
 - ✅ **Адаптивный дизайн** для мобильных устройств
@@ -167,86 +170,8 @@ aspic/
 
 ## ⚙️ Настройка
 
-Пример `.env` с полной конфигурацией:
+Все настройки в файле `.env` с комментариями и описанием
 
-```env
-# Режим отладки
-DEBUG=False
-
-# Хост и порт
-HOST=0.0.0.0
-PORT=15191
-
-# Пути к данным
-UPLOAD_DIR=/opt/dix/aspic/data/files
-PREVIEW_DIR=/opt/dix/aspic/data/preview
-DB_PATH=/opt/dix/aspic/data/aspic.db
-
-# Время жизни временных файлов (1 час)
-PREVIEW_TTL_SECONDS=3600
-
-# Ограничения
-MAX_FILE_SIZE=104857600  # 100 MB
-TOKEN_LENGTH=8
-
-# Поддерживаемые MIME-типы (изображения, видео, аудио, документы, архивы, код)
-ALLOWED_MIMES=image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml,image/bmp,image/tiff,image/x-icon,image/heic,image/avif,video/mp4,video/webm,video/ogg,video/quicktime,video/x-msvideo,video/x-matroska,video/mpeg,video/3gpp,audio/mpeg,audio/ogg,audio/wav,audio/aac,audio/flac,audio/mp4,audio/x-midi,application/pdf,text/plain,text/html,text/css,text/javascript,text/markdown,text/csv,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/rtf,application/json,application/xml,application/x-yaml,text/x-python,text/x-sql,application/zip,application/x-zip-compressed,application/x-rar-compressed,application/x-7z-compressed,application/x-tar,application/gzip
-
-# Rate limiting для пользовательских действий
-RATE_LIMIT_UPLOAD=5/minute
-RATE_LIMIT_COMMENT=3/minute
-RATE_LIMIT_DELETE=2/minute
-
-# Капча
-CAPTCHA_TTL_SECONDS=300
-
-# ============================================
-# НАСТРОЙКИ ВЕБХУКОВ (безопасность)
-# ============================================
-# Таймаут вызова вебхука в секундах
-WEBHOOK_TIMEOUT=5
-
-# Таймаут подключения к вебхуку
-WEBHOOK_CONNECT_TIMEOUT=3
-
-# Таймаут чтения ответа
-WEBHOOK_READ_TIMEOUT=5
-
-# Время кэширования ответов (5 минут)
-WEBHOOK_CACHE_TTL=300
-
-# Лимит вызовов одного вебхука в минуту
-WEBHOOK_RATE_LIMIT_PER_URL=10
-
-# Лимит вызовов вебхуков с одного IP в минуту
-WEBHOOK_RATE_LIMIT_PER_IP=30
-
-# Максимальное количество одновременных запросов с одного IP
-WEBHOOK_MAX_CONCURRENT_PER_IP=5
-
-# Максимальный размер ответа вебхука (1 MB)
-WEBHOOK_MAX_RESPONSE_SIZE=1048576
-
-# Максимальный размер заголовков ответа (8 KB)
-WEBHOOK_MAX_HEADERS_SIZE=8192
-
-# ============================================
-# НАСТРОЙКИ ХРАНЕНИЯ ФАЙЛОВ
-# ============================================
-# Бэкенд хранения: local (пока только локальный диск)
-STORAGE_BACKEND=local
-
-# ============================================
-# ОБХОД ЛИМИТА РАЗМЕРА ФАЙЛА
-# ============================================
-# Секретный ключ для обхода лимита размера файла (оставьте пустым для отключения)
-# При установке: доступ к большим файлам через /?upload_secret=ВАШ_СЕКРЕТ
-# Кука с хэш-токеном устанавливается на 1 час
-UNLIMITED_UPLOAD_SECRET=
-
-# Максимальный размер файла при использовании секрета (4294967296 = 4 ГБ)
-MAX_UNLIMITED_FILE_SIZE=4294967296
-```
 
 ## 🚀 Установка
 
@@ -264,27 +189,11 @@ docker run -d \
   aspic
 ```
 
-Или через `docker-compose`:
-
-```yaml
-version: '3.8'
-services:
-  aspic:
-    build: .
-    ports:
-      - "15191:15191"
-    volumes:
-      - ./data:/opt/dix/aspic/data
-    env_file:
-      - .env
-    restart: unless-stopped
-```
-
 ### Напрямую
 
 ```bash
 # 1. Клонировать репозиторий
-git clone <url>
+git clone https://github.com/dneupokoev/aspic
 cd aspic
 
 # 2. Создать виртуальное окружение
@@ -312,7 +221,12 @@ python -m app.main
 server {
     listen 80;
     listen [::]:80;
-    server_name aspic.YOU-DOMAIN.com;
+    server_name aspic.YOU-DOMAIN.ru;
+
+    # Базовые заголовки безопасности для HTTP
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+
     return 301 https://$host$request_uri;
 }
 
@@ -320,39 +234,122 @@ server {
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name aspic.YOU-DOMAIN.com;
+    server_name aspic.YOU-DOMAIN.ru;
 
-    # SSL-сертификаты (используем существующий)
-    ssl_certificate /etc/letsencrypt/live/aspic.YOU-DOMAIN.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/aspic.YOU-DOMAIN.com/privkey.pem;
+    # SSL-сертификаты
+    ssl_certificate /etc/letsencrypt/live/YOU-DOMAIN.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/YOU-DOMAIN.ru/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
-    # Заголовки безопасности (как в вашем примере)
-    add_header X-Content-Type-Options "nosniff";
-    add_header X-Frame-Options "SAMEORIGIN";
-    add_header X-XSS-Protection "1; mode=block";
+    # ============================================
+    # ЗАГОЛОВКИ БЕЗОПАСНОСТИ
+    # ============================================
+    # HSTS - заставляет браузер всегда использовать HTTPS
+    add_header Strict-Transport-Security "max-age=63072000" always;
 
-    # Максимальный размер загружаемого файла (для ASPIC)
-    # Увеличьте до 4G, если используете обход лимита
-    client_max_body_size 500M;
+    # Защита от угадывания MIME-типов
+    add_header X-Content-Type-Options "nosniff" always;
 
-    # Проксирование на ASPIC (порт 15191)
+    # Защита от clickjacking
+    add_header X-Frame-Options "SAMEORIGIN" always;
+
+    # Встроенный фильтр XSS
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Контроль referrer
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Для мобильных устройств - отключаем кэширование динамических страниц
+    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+
+    # ============================================
+    # НАСТРОЙКИ ЗАГРУЗКИ ФАЙЛОВ
+    # ============================================
+    # Максимальный размер загружаемого файла - 4 ГБ
+    client_max_body_size 4096M;
+
+    # Буферы для больших файлов
+    client_body_buffer_size 256k;
+    client_header_buffer_size 2k;
+    large_client_header_buffers 4 16k;
+
+    # Таймауты (1 час для больших файлов)
+    client_body_timeout 3600s;
+    client_header_timeout 3600s;
+    keepalive_timeout 3600s;
+    send_timeout 3600s;
+
+    # ============================================
+    # СЖАТИЕ (для мобильных устройств)
+    # ============================================
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types
+        text/plain
+        text/css
+        text/xml
+        text/javascript
+        application/json
+        application/javascript
+        application/xml+rss
+        application/xml
+        application/rss+xml
+        application/atom+xml
+        image/svg+xml
+        text/x-cross-word;
+    gzip_disable "msie6";
+    gzip_comp_level 5;
+    gzip_proxied any;
+
+    # ============================================
+    # ПРОКСИРОВАНИЕ НА ASPIC
+    # ============================================
     location / {
         proxy_pass http://127.0.0.1:15191;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
 
-        # ВАЖНО: Убираем заголовок Content-Disposition, который может добавлять Nginx
+        # Убираем заголовок Content-Disposition, который может добавлять Nginx
         proxy_hide_header Content-Disposition;
 
-        # Увеличиваем таймауты для больших файлов
+        # Буферизация для больших файлов
+        proxy_buffering on;
+        proxy_buffer_size 8k;
+        proxy_buffers 16 8k;
+        proxy_busy_buffers_size 16k;
+
+        # Таймауты для больших файлов (1 час)
         proxy_connect_timeout 3600s;
         proxy_send_timeout 3600s;
         proxy_read_timeout 3600s;
+
+        proxy_ignore_client_abort off;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_cache off;
     }
+
+    # ============================================
+    # СТАТИЧЕСКИЕ ФАЙЛЫ
+    # ============================================
+    location /static/ {
+        alias /opt/dix/aspic/app/static/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        gzip_static on;
+    }
+
+    # ============================================
+    # ЛОГИРОВАНИЕ
+    # ============================================
+    error_log /var/log/nginx/aspic_error.log warn;
+    access_log /var/log/nginx/aspic_access.log combined buffer=32k flush=5s;
 }
 ```
 
@@ -368,8 +365,10 @@ server {
 | `GET` | `/api/file/{token}` | Получить информацию о файле в JSON |
 | `GET` | `/api/comments/{token}` | Получить комментарии к файлу |
 | `GET` | `/api/captcha/{token}` | Получить капчу для удаления |
+| `GET` | `/api/mime-map` | Получить маппинг MIME-типов для предпросмотра |
 | `POST` | `/view/{token}/comment` | Добавить комментарий |
 | `POST` | `/view/{token}/delete` | Удалить файл (с капчей и опциональным паролем) |
+
 
 ## 🧹 Очистка удаленных файлов
 
@@ -385,4 +384,4 @@ python app/cleanup.py
 
 ## 📝 Лицензия
 
-**ASPIC** — файлы живут «вечно», пока кто-то не нажмёт «Удалить»
+**ASPIC** — файлы живут «вечно», пока они востребованы или кто-то не нажмёт «Удалить»

@@ -33,14 +33,15 @@ from app.webhook import check_webhook_access
 from app.captcha import captcha_store
 from app.config import (
     DEBUG, HOST, PORT, UPLOAD_DIR, PREVIEW_DIR, DB_PATH,
-    PREVIEW_TTL, MAX_FILE_SIZE, TOKEN_LENGTH, ALLOWED_MIMES,
+    PREVIEW_TTL, MAX_FILE_SIZE, TOKEN_LENGTH,
     RATE_LIMIT_UPLOAD, RATE_LIMIT_COMMENT, RATE_LIMIT_DELETE,
     WEBHOOK_TIMEOUT, WEBHOOK_CACHE_TTL,
     get_upload_hint_text, get_not_found_message, get_file_size_limit_text,
-    get_allowed_formats_text, get_dated_upload_path,
+    get_dated_upload_path,
     STORAGE_BACKEND,
-    # НОВОЕ: для обхода лимита размера
-    UNLIMITED_UPLOAD_SECRET, MAX_UNLIMITED_FILE_SIZE
+    # для обхода лимита размера
+    UNLIMITED_UPLOAD_SECRET, MAX_UNLIMITED_FILE_SIZE,
+    EXT_TO_MIME, PREVIEW_MIME_MAP
 )
 
 # Для работы с изображениями
@@ -186,7 +187,7 @@ async def lifespan(app: FastAPI):
     print(f"📁 Постоянное хранилище: {UPLOAD_DIR}")
     print(f"📁 Временное хранилище: {PREVIEW_DIR}")
     print(f"💾 База данных: {DB_PATH}")
-    print(f"📊 Поддерживаемые форматы: {len(ALLOWED_MIMES)} типов")
+    print(f"📊 Режим: принимаем любые файлы, отображаем поддерживаемые")
     print(f"🔧 Режим DEBUG: {DEBUG}")
     print(f"🔗 Webhook timeout: {WEBHOOK_TIMEOUT}s, cache TTL: {WEBHOOK_CACHE_TTL}s")
 
@@ -398,7 +399,6 @@ async def index(request: Request, error: str = None):
         {
             "request": request,
             "max_file_size": effective_max_size,
-            "allowed_mimes": ALLOWED_MIMES,
             "upload_hint": get_upload_hint_text(effective_max_size),
             "user_id": user_id,
             "error_message": error_message,
@@ -575,6 +575,15 @@ async def get_file_info(request: Request, token: str):
 
 
 # ============================================
+# API ДЛЯ MIME-МАППИНГА (для frontend)
+# ============================================
+@app.get("/api/mime-map")
+async def get_mime_map_api():
+    """Возвращает маппинг расширений для предпросмотра (для frontend)."""
+    return PREVIEW_MIME_MAP
+
+
+# ============================================
 # ЗАГРУЗКА С ПРЕДПРОСМОТРОМ
 # ============================================
 @app.post("/api/preview")
@@ -584,12 +593,6 @@ async def create_preview(
         file: UploadFile = File(...),
         background_tasks: BackgroundTasks = None
 ):
-    try:
-        file_data = await file.read()
-        print(f"📥 Загружен файл: {file.filename}, размер: {len(file_data)} байт")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Ошибка чтения файла: {e}")
-
     # Проверяем доступ к большим файлам через отдельную функцию
     effective_max_size = MAX_UNLIMITED_FILE_SIZE if check_unlimited_upload_access(request) else MAX_FILE_SIZE
 
@@ -618,52 +621,25 @@ async def create_preview(
             detail=f"Файл слишком большой. {get_file_size_limit_text(effective_max_size)}"
         )
 
-    # ОПРЕДЕЛЕНИЕ MIME-ТИПА
+    # ОПРЕДЕЛЕНИЕ MIME-ТИПА с помощью python-magic (по содержимому, а не по расширению)
     mime_type = "application/octet-stream"
 
-    if file.filename:
-        ext = Path(file.filename).suffix.lower()
+    try:
+        # Используем python-magic для определения MIME-типа по содержимому
+        mime_detected = magic.from_buffer(file_data, mime=True)
+        if mime_detected:
+            mime_type = mime_detected
+            print(f"🔍 MIME-тип по содержимому: {mime_type}")
+    except Exception as e:
+        print(f"⚠️ Ошибка определения MIME-типа через magic: {e}")
+        # Если не удалось определить через magic, пробуем по расширению
+        if file.filename:
+            ext = Path(file.filename).suffix.lower()
+            if ext in EXT_TO_MIME:
+                mime_type = EXT_TO_MIME[ext]
+                print(f"🔍 MIME-тип по расширению (fallback): {mime_type}")
 
-        # Таблица соответствия расширений MIME-типам
-        ext_to_mime = {
-            # Документы
-            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            '.doc': 'application/msword',
-            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            '.xls': 'application/vnd.ms-excel',
-            '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            '.ppt': 'application/vnd.ms-powerpoint',
-            '.pdf': 'application/pdf',
-            '.txt': 'text/plain',
-            # Изображения
-            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-            '.png': 'image/png',
-            '.gif': 'image/gif',
-            '.webp': 'image/webp',
-            '.svg': 'image/svg+xml',
-            # Видео
-            '.mp4': 'video/mp4',
-            '.webm': 'video/webm',
-            # Аудио
-            '.mp3': 'audio/mpeg',
-            '.wav': 'audio/wav',
-            # Архивы
-            '.zip': 'application/zip',
-            '.rar': 'application/x-rar-compressed',
-            '.7z': 'application/x-7z-compressed',
-        }
-
-        if ext in ext_to_mime:
-            mime_type = ext_to_mime[ext]
-            print(f"🔍 MIME-тип по расширению: {mime_type}")
-
-    # Проверка в ALLOWED_MIMES из .env
-    if mime_type not in ALLOWED_MIMES:
-        print(f"❌ MIME-тип {mime_type} не разрешен")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Тип файла не разрешен. Разрешены: {get_allowed_formats_text()}"
-        )
+    # Файлы любых типов будут сохранены, но отображаться будут только поддерживаемые браузером
 
     preview_id = str(uuid.uuid4())
     filename = file.filename or "file"
@@ -703,19 +679,8 @@ async def get_preview_file(filename: str):
         raise HTTPException(status_code=404, detail="Файл предпросмотра не найден")
 
     ext = file_path.suffix.lower()
-    mime_map = {
-        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-        '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
-        '.mp4': 'video/mp4', '.webm': 'video/webm',
-        '.mp3': 'audio/mpeg', '.wav': 'audio/wav',
-        '.pdf': 'application/pdf',
-        '.txt': 'text/plain',
-        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        '.doc': 'application/msword',
-        '.zip': 'application/zip',
-    }
-
-    media_type = mime_map.get(ext, 'application/octet-stream')
+    # Используем PREVIEW_MIME_MAP из config.py (единый источник истины)
+    media_type = PREVIEW_MIME_MAP.get(ext, 'application/octet-stream')
     return FileResponse(
         path=file_path,
         media_type=media_type,
@@ -759,6 +724,19 @@ async def confirm_upload(
     temp_path = preview_files[0]
     token = generate_token()
     ext = temp_path.suffix
+
+    # Если MIME-тип не передан или это octet-stream, пробуем определить его заново
+    if mime_type == "application/octet-stream" or not mime_type:
+        try:
+            # Читаем начало файла для определения MIME
+            async with aiofiles.open(temp_path, 'rb') as f:
+                file_head = await f.read(2048)  # Читаем первые 2KB для определения типа
+                mime_detected = magic.from_buffer(file_head, mime=True)
+                if mime_detected:
+                    mime_type = mime_detected
+                    print(f"🔍 MIME-тип при подтверждении: {mime_type}")
+        except Exception as e:
+            print(f"⚠️ Не удалось определить MIME-тип при подтверждении: {e}")
 
     # Используем абстракцию хранилища для сохранения
     try:

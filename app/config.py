@@ -41,17 +41,17 @@ WEBHOOK_RATE_LIMIT_PER_IP = int(os.getenv('WEBHOOK_RATE_LIMIT_PER_IP', 30))
 # ============================================
 # Блокировка внутренних/приватных IP (защита от SSRF)
 BLOCKED_IP_RANGES = [
-    '127.0.0.0/8',      # localhost
-    '10.0.0.0/8',       # private networks
-    '172.16.0.0/12',    # private networks
-    '192.168.0.0/16',   # private networks
-    '169.254.0.0/16',   # link-local
-    '::1',              # IPv6 localhost
-    'fc00::/7',         # IPv6 unique local
-    'fe80::/10',        # IPv6 link-local
-    '0.0.0.0/8',        # invalid addresses
-    '100.64.0.0/10',    # carrier-grade NAT
-    '198.18.0.0/15',    # network benchmark
+    '127.0.0.0/8',  # localhost
+    '10.0.0.0/8',  # private networks
+    '172.16.0.0/12',  # private networks
+    '192.168.0.0/16',  # private networks
+    '169.254.0.0/16',  # link-local
+    '::1',  # IPv6 localhost
+    'fc00::/7',  # IPv6 unique local
+    'fe80::/10',  # IPv6 link-local
+    '0.0.0.0/8',  # invalid addresses
+    '100.64.0.0/10',  # carrier-grade NAT
+    '198.18.0.0/15',  # network benchmark
 ]
 
 # Разрешённые протоколы (только HTTPS в продакшене)
@@ -68,7 +68,7 @@ WEBHOOK_MAX_CONCURRENT_PER_IP = int(os.getenv('WEBHOOK_MAX_CONCURRENT_PER_IP', 5
 
 # Таймауты для разных этапов
 WEBHOOK_CONNECT_TIMEOUT = int(os.getenv('WEBHOOK_CONNECT_TIMEOUT', 3))  # Таймаут подключения
-WEBHOOK_READ_TIMEOUT = int(os.getenv('WEBHOOK_READ_TIMEOUT', 5))        # Таймаут чтения
+WEBHOOK_READ_TIMEOUT = int(os.getenv('WEBHOOK_READ_TIMEOUT', 5))  # Таймаут чтения
 
 # Ограничения на размеры данных
 WEBHOOK_MAX_HEADERS_SIZE = int(os.getenv('WEBHOOK_MAX_HEADERS_SIZE', 8192))  # 8 KB
@@ -86,6 +86,7 @@ STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local').lower()
 UNLIMITED_UPLOAD_SECRET = os.getenv('UNLIMITED_UPLOAD_SECRET', '')
 # Максимальный размер файла при использовании секрета (4 ГБ по умолчанию)
 MAX_UNLIMITED_FILE_SIZE = int(os.getenv('MAX_UNLIMITED_FILE_SIZE', 4294967296))
+
 
 # ============================================
 # ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ПУТИ С ДАТОЙ
@@ -108,146 +109,180 @@ def get_dated_upload_path(filename: str = None) -> Path:
         return dated_path / filename
     return dated_path
 
-# ============================================
-# РАСШИРЕННЫЙ СПИСОК ПОДДЕРЖИВАЕМЫХ MIME-ТИПОВ
-# ============================================
-DEFAULT_MIMES = [
-    # Изображения
-    'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
-    'image/svg+xml', 'image/bmp', 'image/tiff', 'image/x-icon',
-    'image/heic', 'image/heif', 'image/avif',
-    # Видео
-    'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime',
-    'video/x-msvideo', 'video/x-matroska', 'video/mpeg', 'video/3gpp',
-    'video/x-ms-wmv', 'video/x-flv',
-    # Аудио
-    'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/webm',
-    'audio/aac', 'audio/flac', 'audio/mp4', 'audio/x-midi',
-    'audio/x-wav', 'audio/x-m4a', 'audio/x-matroska',
-    # Документы
-    'application/pdf',
-    'text/plain', 'text/html', 'text/css', 'text/javascript',
-    'text/markdown', 'text/csv', 'text/rtf',
-    'application/msword',  # .doc
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # .docx
-    'application/vnd.ms-excel',  # .xls
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # .xlsx
-    'application/vnd.ms-powerpoint',  # .ppt
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',  # .pptx
-    'application/rtf',  # .rtf
-    'application/vnd.oasis.opendocument.text',  # .odt
-    'application/vnd.oasis.opendocument.spreadsheet',  # .ods
-    'application/vnd.oasis.opendocument.presentation',  # .odp
-    # Код и данные
-    'application/json', 'application/xml', 'application/x-yaml',
-    'text/x-python', 'text/x-sql', 'text/x-java-source',
-    'text/x-c', 'text/x-c++', 'text/x-php', 'text/x-ruby',
-    'text/x-go', 'text/x-rust', 'text/x-swift',
-    'application/javascript', 'application/typescript',
-    'application/x-sh', 'application/x-bash', 'application/x-perl',
-    # Архивы
-    'application/zip', 'application/x-zip-compressed',
-    'application/x-rar-compressed', 'application/x-7z-compressed',
-    'application/x-tar', 'application/gzip', 'application/x-bzip2',
-    'application/x-brotli', 'application/x-xz', 'application/zstd',
-    # Электронные книги
-    'application/epub+zip', 'application/x-mobipocket-ebook',
-    'application/vnd.amazon.ebook', 'application/x-fictionbook+xml',
-    # Чертежи и 3D
-    'application/x-dwg', 'application/x-dxf', 'model/stl',
-    'application/x-step', 'model/obj', 'model/3mf',
-    # Другое
-    'application/octet-stream', 'application/x-www-form-urlencoded',
-    'application/x-iso9660-image', 'application/x-cd-image',
-    'application/x-msdownload', 'application/x-msi',
-]
 
-ALLOWED_MIMES_RAW = os.getenv('ALLOWED_MIMES', ','.join(DEFAULT_MIMES))
-ALLOWED_MIMES = [mime.strip() for mime in ALLOWED_MIMES_RAW.split(',')]
+# ============================================
+# МАППИНГ РАСШИРЕНИЙ -> MIME-ТИПЫ (единый источник истины)
+# ============================================
+# Используется в main.py для определения MIME-типа при загрузке
+EXT_TO_MIME: Dict[str, str] = {
+    # Документы
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.doc': 'application/msword',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.xls': 'application/vnd.ms-excel',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.pdf': 'application/pdf',
+    '.txt': 'text/plain',
+    '.rtf': 'application/rtf',
+    '.odt': 'application/vnd.oasis.opendocument.text',
+    '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
+    '.odp': 'application/vnd.oasis.opendocument.presentation',
+    '.csv': 'text/csv',
+    '.md': 'text/markdown',
+    '.html': 'text/html', '.htm': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.json': 'application/json',
+    '.xml': 'application/xml',
+    '.yaml': 'application/x-yaml', '.yml': 'application/x-yaml',
+    # Код
+    '.py': 'text/x-python',
+    '.sql': 'text/x-sql',
+    '.java': 'text/x-java-source',
+    '.c': 'text/x-c', '.h': 'text/x-c',
+    '.cpp': 'text/x-c++', '.hpp': 'text/x-c++', '.cc': 'text/x-c++',
+    '.php': 'text/x-php',
+    '.rb': 'text/x-ruby',
+    '.go': 'text/x-go',
+    '.rs': 'text/x-rust',
+    '.swift': 'text/x-swift',
+    '.ts': 'application/typescript',
+    '.sh': 'application/x-sh', '.bash': 'application/x-bash',
+    '.pl': 'application/x-perl',
+    # Изображения
+    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml', '.svgz': 'image/svg+xml',
+    '.bmp': 'image/bmp',
+    '.tiff': 'image/tiff', '.tif': 'image/tiff',
+    '.ico': 'image/x-icon',
+    '.heic': 'image/heic', '.heif': 'image/heif',
+    '.avif': 'image/avif',
+    # Видео
+    '.mp4': 'video/mp4', '.m4v': 'video/mp4',
+    '.webm': 'video/webm',
+    '.ogg': 'video/ogg', '.ogv': 'video/ogg',
+    '.mov': 'video/quicktime',
+    '.avi': 'video/x-msvideo',
+    '.mkv': 'video/x-matroska',
+    '.mpeg': 'video/mpeg', '.mpg': 'video/mpeg', '.mpe': 'video/mpeg',
+    '.3gp': 'video/3gpp', '.3g2': 'video/3gpp',
+    '.wmv': 'video/x-ms-wmv',
+    '.flv': 'video/x-flv',
+    # Аудио
+    '.mp3': 'audio/mpeg',
+    '.ogg': 'audio/ogg',
+    '.wav': 'audio/wav',
+    '.webm': 'audio/webm',
+    '.aac': 'audio/aac',
+    '.flac': 'audio/flac',
+    '.m4a': 'audio/mp4', '.mp4': 'audio/mp4',
+    '.midi': 'audio/x-midi', '.mid': 'audio/x-midi',
+    # Архивы
+    '.zip': 'application/zip',
+    '.rar': 'application/x-rar-compressed',
+    '.7z': 'application/x-7z-compressed',
+    '.tar': 'application/x-tar',
+    '.gz': 'application/gzip', '.tgz': 'application/gzip',
+    '.bz2': 'application/x-bzip2',
+    '.xz': 'application/x-xz',
+    '.zst': 'application/zstd',
+    '.br': 'application/x-brotli',
+    # Электронные книги
+    '.epub': 'application/epub+zip',
+    '.mobi': 'application/x-mobipocket-ebook',
+    '.azw': 'application/vnd.amazon.ebook', '.azw3': 'application/vnd.amazon.ebook',
+    '.fb2': 'application/x-fictionbook+xml',
+    # Чертежи и 3D
+    '.dwg': 'application/x-dwg',
+    '.dxf': 'application/x-dxf',
+    '.stl': 'model/stl',
+    '.step': 'application/x-step', '.stp': 'application/x-step',
+    '.obj': 'model/obj',
+    '.3mf': 'model/3mf',
+    # Другое
+    '.bin': 'application/octet-stream',
+}
+
+# Маппинг для предпросмотра в браузере (только поддерживаемые форматы)
+# Используется в main.py для эндпоинта /preview/{filename}
+# И может быть экспортирован в frontend через /api/mime-map
+PREVIEW_MIME_MAP: Dict[str, str] = {
+    # Изображения
+    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+    '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+    '.bmp': 'image/bmp', '.tiff': 'image/tiff', '.tif': 'image/tiff',
+    '.ico': 'image/x-icon', '.heic': 'image/heic', '.avif': 'image/avif',
+    # Видео
+    '.mp4': 'video/mp4', '.webm': 'video/webm', '.ogg': 'video/ogg', '.ogv': 'video/ogg',
+    '.mov': 'video/quicktime', '.avi': 'video/x-msvideo', '.mkv': 'video/x-matroska',
+    # Аудио
+    '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+    '.aac': 'audio/aac', '.flac': 'audio/flac', '.m4a': 'audio/mp4',
+    # Документы (только те, что браузер может отобразить)
+    '.pdf': 'application/pdf',
+    '.txt': 'text/plain', '.html': 'text/html', '.htm': 'text/html',
+    '.css': 'text/css', '.js': 'application/javascript',
+    '.json': 'application/json', '.xml': 'application/xml',
+    '.md': 'text/markdown', '.csv': 'text/csv', '.rtf': 'application/rtf',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    # Архивы (только для скачивания, без предпросмотра)
+    '.zip': 'application/zip', '.rar': 'application/x-rar-compressed',
+    '.7z': 'application/x-7z-compressed', '.tar': 'application/x-tar',
+    '.gz': 'application/gzip', '.bz2': 'application/x-bzip2',
+    # Электронные книги
+    '.epub': 'application/epub+zip', '.mobi': 'application/x-mobipocket-ebook',
+    '.fb2': 'application/x-fictionbook+xml',
+}
 
 RATE_LIMIT_UPLOAD = os.getenv('RATE_LIMIT_UPLOAD', '5/minute')
 RATE_LIMIT_COMMENT = os.getenv('RATE_LIMIT_COMMENT', '3/minute')
 RATE_LIMIT_DELETE = os.getenv('RATE_LIMIT_DELETE', '2/minute')
 
+
 # ============================================
 # ДИНАМИЧЕСКИЕ СООБЩЕНИЯ
 # ============================================
 def get_file_size_limit_text(max_size: int = None) -> str:
-    """Возвращает текст с ограничением по размеру файла."""
+    """Возвращает текст с ограничением по размеру файла (автоматический выбор единиц измерения)."""
     size = max_size if max_size is not None else MAX_FILE_SIZE
-    size_mb = size // 1048576
-    return f"До {size_mb} МБ"
 
-def get_allowed_formats_text() -> str:
-    """Возвращает текст с поддерживаемыми форматами."""
-    format_map = {
-        # Изображения
-        'image/jpeg': 'JPG', 'image/jpg': 'JPG', 'image/png': 'PNG',
-        'image/gif': 'GIF', 'image/webp': 'WEBP', 'image/svg+xml': 'SVG',
-        'image/bmp': 'BMP', 'image/tiff': 'TIFF', 'image/x-icon': 'ICO',
-        'image/heic': 'HEIC', 'image/heif': 'HEIF', 'image/avif': 'AVIF',
-        # Видео
-        'video/mp4': 'MP4', 'video/webm': 'WEBM', 'video/ogg': 'OGV',
-        'video/quicktime': 'MOV', 'video/x-msvideo': 'AVI',
-        'video/x-matroska': 'MKV', 'video/mpeg': 'MPEG',
-        'video/3gpp': '3GP', 'video/x-ms-wmv': 'WMV', 'video/x-flv': 'FLV',
-        # Аудио
-        'audio/mpeg': 'MP3', 'audio/ogg': 'OGG', 'audio/wav': 'WAV',
-        'audio/webm': 'WEBM', 'audio/aac': 'AAC', 'audio/flac': 'FLAC',
-        'audio/mp4': 'M4A', 'audio/x-midi': 'MIDI',
-        'audio/x-wav': 'WAV', 'audio/x-m4a': 'M4A', 'audio/x-matroska': 'MKA',
-        # Документы
-        'application/pdf': 'PDF', 'text/plain': 'TXT', 'text/html': 'HTML',
-        'text/css': 'CSS', 'text/javascript': 'JS', 'text/markdown': 'MD',
-        'text/csv': 'CSV', 'text/rtf': 'RTF',
-        'application/msword': 'DOC',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
-        'application/vnd.ms-excel': 'XLS',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
-        'application/vnd.ms-powerpoint': 'PPT',
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
-        'application/rtf': 'RTF',
-        'application/vnd.oasis.opendocument.text': 'ODT',
-        'application/vnd.oasis.opendocument.spreadsheet': 'ODS',
-        'application/vnd.oasis.opendocument.presentation': 'ODP',
-        # Код и данные
-        'application/json': 'JSON', 'application/xml': 'XML',
-        'application/x-yaml': 'YAML', 'text/x-python': 'PY',
-        'text/x-sql': 'SQL', 'text/x-java-source': 'JAVA',
-        'text/x-c': 'C', 'text/x-c++': 'CPP', 'text/x-php': 'PHP',
-        'text/x-ruby': 'RB', 'text/x-go': 'GO', 'text/x-rust': 'RS',
-        'text/x-swift': 'SWIFT', 'application/javascript': 'JS',
-        'application/typescript': 'TS', 'application/x-sh': 'SH',
-        'application/x-bash': 'BASH', 'application/x-perl': 'PL',
-        # Архивы
-        'application/zip': 'ZIP', 'application/x-zip-compressed': 'ZIP',
-        'application/x-rar-compressed': 'RAR', 'application/x-7z-compressed': '7Z',
-        'application/x-tar': 'TAR', 'application/gzip': 'GZ',
-        'application/x-bzip2': 'BZ2', 'application/x-brotli': 'BR',
-        'application/x-xz': 'XZ', 'application/zstd': 'ZST',
-        # Электронные книги
-        'application/epub+zip': 'EPUB', 'application/x-mobipocket-ebook': 'MOBI',
-        'application/vnd.amazon.ebook': 'AZW', 'application/x-fictionbook+xml': 'FB2',
-        # Чертежи и 3D
-        'application/x-dwg': 'DWG', 'application/x-dxf': 'DXF',
-        'model/stl': 'STL', 'application/x-step': 'STEP',
-        'model/obj': 'OBJ', 'model/3mf': '3MF',
-    }
+    # Определяем подходящую единицу измерения
+    units = ['Б', 'КБ', 'МБ', 'ГБ', 'ТБ']
+    unit_index = 0
+    temp_size = size
 
-    formats = []
-    for mime in ALLOWED_MIMES:
-        if mime in format_map:
-            formats.append(format_map[mime])
+    while temp_size >= 1024 and unit_index < len(units) - 1:
+        temp_size /= 1024
+        unit_index += 1
 
-    # Убираем дубликаты и сортируем
-    unique_formats = sorted(list(set(formats)))
-    return ', '.join(unique_formats)
+    # Форматируем с нужной точностью
+    if unit_index == 0:  # Байты
+        return f"{int(temp_size)} {units[unit_index]}"
+    elif temp_size < 10:  # Для маленьких чисел показываем с десятыми
+        return f"{temp_size:.1f} {units[unit_index]}"
+    elif temp_size < 100:  # Для средних чисел - с одной десятой или целое
+        if temp_size - int(temp_size) < 0.1:
+            return f"{int(temp_size)} {units[unit_index]}"
+        else:
+            return f"{temp_size:.1f} {units[unit_index]}"
+    else:  # Для больших чисел - целое
+        return f"{int(temp_size)} {units[unit_index]}"
+
 
 def get_upload_hint_text(max_size: int = None) -> str:
     """Возвращает полный текст подсказки для загрузки."""
     size_text = get_file_size_limit_text(max_size)
-    formats_text = get_allowed_formats_text()
-    return f"{size_text}, поддерживаются: {formats_text}"
+    return f"Поддерживаются любые файлы до {size_text}"
+
 
 def get_not_found_message() -> str:
     """Возвращает сообщение о ненайденном файле."""

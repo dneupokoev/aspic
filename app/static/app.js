@@ -583,7 +583,7 @@ async function uploadForPreview(file, textContent = null) {
                 previewHtml = `<iframe src="${data.preview_url}" class="preview-iframe"></iframe>`;
             } else {
                 previewHtml = `<div class="preview-unsupported">
-                    <p>Предпросмотр недоступен</p>
+                    <p>Предпросмотр недоступен для этого типа файлов</p>
                     <p class="file-detail">Тип: ${data.mime_type}</p>
                 </div>`;
             }

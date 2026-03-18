@@ -49,7 +49,8 @@
                         <iframe src="/file/{{ file.token }}{{ query_string }}" class="preview-iframe"></iframe>
                     {% else %}
                         <div class="preview-placeholder">
-                            <p>Предпросмотр недоступен</p>
+                            <p>Предпросмотр недоступен для этого типа файлов</p>
+                            <p class="file-detail">Тип: {{ file.mime_type }}</p>
                         </div>
                     {% endif %}
                 </div>
