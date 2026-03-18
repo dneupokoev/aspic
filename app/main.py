@@ -39,6 +39,8 @@ from app.config import (
     get_upload_hint_text, get_not_found_message, get_file_size_limit_text,
     get_allowed_formats_text, get_dated_upload_path,
     STORAGE_BACKEND,
+    # НОВОЕ: для обхода лимита размера
+    UNLIMITED_UPLOAD_SECRET, MAX_UNLIMITED_FILE_SIZE
 )
 
 # Для работы с изображениями
@@ -86,6 +88,82 @@ def cleanup_old_views():
             expired.append(key)
     for key in expired:
         del view_tracker[key]
+
+
+# ============================================
+# ПРОВЕРКА ДОСТУПА К БОЛЬШИМ ФАЙЛАМ
+# ============================================
+def _generate_upload_token(secret: str, timestamp: float, salt: str) -> str:
+    """Генерирует хэш-токен для доступа к большим файлам."""
+    data = f"{secret}:{timestamp}:{salt}"
+    return hashlib.sha256(data.encode()).hexdigest()
+
+
+def _parse_upload_token(cookie_value: str) -> Optional[tuple]:
+    """Парсит куку и возвращает (хэш, таймстамп, соль) или None если формат неверный."""
+    try:
+        parts = cookie_value.split(':')
+        if len(parts) != 3:
+            return None
+        token_hash, timestamp_str, salt = parts
+        timestamp = float(timestamp_str)
+        return token_hash, timestamp, salt
+    except (ValueError, IndexError):
+        return None
+
+
+def check_unlimited_upload_access(request: Request) -> bool:
+    """
+    Проверяет, имеет ли пользователь доступ к загрузке больших файлов.
+
+    Проверяет:
+    1. Параметр ?upload_secret=XXX в запросе
+    2. Куку upload_token с валидным хэшем
+
+    Возвращает True если доступ разрешён, False иначе.
+    """
+    # Если секрет не настроен — доступ к большим файлам отключён
+    if not UNLIMITED_UPLOAD_SECRET:
+        return False
+
+    # Проверяем параметр в запросе (первый вход)
+    upload_secret = request.query_params.get('upload_secret', '')
+    if upload_secret and upload_secret == UNLIMITED_UPLOAD_SECRET:
+        return True
+
+    # Проверяем куку (последующие запросы)
+    upload_token = request.cookies.get('upload_token', '')
+    if not upload_token:
+        return False
+
+    parsed = _parse_upload_token(upload_token)
+    if not parsed:
+        return False
+
+    token_hash, timestamp, salt = parsed
+
+    # Проверяем, что токен не истёк (1 час = 3600 секунд)
+    now = time.time()
+    if now - timestamp > 3600:
+        return False
+
+    # Проверяем хэш
+    expected_hash = _generate_upload_token(UNLIMITED_UPLOAD_SECRET, timestamp, salt)
+    return secrets.compare_digest(token_hash, expected_hash)
+
+
+def set_unlimited_upload_cookie(response, timestamp: float, salt: str) -> None:
+    """Устанавливает куку с токеном доступа к большим файлам на 1 час."""
+    token_hash = _generate_upload_token(UNLIMITED_UPLOAD_SECRET, timestamp, salt)
+    cookie_value = f"{token_hash}:{timestamp}:{salt}"
+    response.set_cookie(
+        key="upload_token",
+        value=cookie_value,
+        max_age=3600,  # 1 час
+        httponly=False,  # Нужно для JS, если потребуется
+        samesite="lax",
+        secure=not DEBUG  # Только HTTPS в продакшене
+    )
 
 
 # ============================================
@@ -311,19 +389,31 @@ async def index(request: Request, error: str = None):
     elif error == "deleted":
         error_message = "Файл успешно удален"
 
+    # Проверяем доступ к большим файлам
+    has_unlimited = check_unlimited_upload_access(request)
+    effective_max_size = MAX_UNLIMITED_FILE_SIZE if has_unlimited else MAX_FILE_SIZE
+
     response = templates.TemplateResponse(
         "index.html",
         {
             "request": request,
-            "max_file_size": MAX_FILE_SIZE,
+            "max_file_size": effective_max_size,
             "allowed_mimes": ALLOWED_MIMES,
-            "upload_hint": get_upload_hint_text(),
+            "upload_hint": get_upload_hint_text(effective_max_size),
             "user_id": user_id,
             "error_message": error_message,
             "format_file_size": format_file_size,
             "get_file_icon": get_file_icon
         }
     )
+
+    # Если пользователь ввёл правильный секрет — устанавливаем куку на 1 час
+    upload_secret = request.query_params.get('upload_secret', '')
+    if UNLIMITED_UPLOAD_SECRET and upload_secret == UNLIMITED_UPLOAD_SECRET:
+        timestamp = time.time()
+        salt = secrets.token_urlsafe(16)
+        set_unlimited_upload_cookie(response, timestamp, salt)
+        print(f"🔓 Unlimited upload cookie set for 1 hour")
 
     if not request.cookies.get("user_id"):
         response.set_cookie(
@@ -500,10 +590,32 @@ async def create_preview(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Ошибка чтения файла: {e}")
 
-    if len(file_data) > MAX_FILE_SIZE:
+    # Проверяем доступ к большим файлам через отдельную функцию
+    effective_max_size = MAX_UNLIMITED_FILE_SIZE if check_unlimited_upload_access(request) else MAX_FILE_SIZE
+
+    # Проверяем размер файла ДО чтения в память (если файл сообщает свой размер)
+    if file.size is not None and file.size > effective_max_size:
         raise HTTPException(
             status_code=400,
-            detail=f"Файл слишком большой. {get_file_size_limit_text()}"
+            detail=f"Файл слишком большой. {get_file_size_limit_text(effective_max_size)}"
+        )
+
+    try:
+        file_data = await file.read()
+        print(f"📥 Загружен файл: {file.filename}, размер: {len(file_data)} байт")
+    except MemoryError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Недостаточно памяти для обработки файла. {get_file_size_limit_text(effective_max_size)}"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Ошибка чтения файла: {e}")
+
+    # Дополнительная проверка после чтения (на случай если file.size был None)
+    if len(file_data) > effective_max_size:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Файл слишком большой. {get_file_size_limit_text(effective_max_size)}"
         )
 
     # ОПРЕДЕЛЕНИЕ MIME-ТИПА

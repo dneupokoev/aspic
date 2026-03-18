@@ -13,10 +13,6 @@ services:
       - ./app/static:/opt/dix/aspic/app/static
     env_file:
       - .env
-    environment:
-      - UPLOAD_DIR=/opt/dix/aspic/data/files
-      - MAX_FILE_SIZE=104857600
-      - TOKEN_LENGTH=8
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:15191/"]
       interval: 30s

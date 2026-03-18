@@ -21,12 +21,6 @@ MAX_FILE_SIZE = int(os.getenv('MAX_FILE_SIZE', 104857600))  # 100 MB
 TOKEN_LENGTH = int(os.getenv('TOKEN_LENGTH', 8))
 
 # ============================================
-# НАСТРОЙКИ ХРАНЕНИЯ ФАЙЛОВ
-# ============================================
-# Бэкенд хранения: local (пока только локальный диск)
-STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local').lower()
-
-# ============================================
 # НАСТРОЙКИ ДЛЯ ВЕБХУКОВ
 # ============================================
 # Таймаут в секундах
@@ -78,6 +72,20 @@ WEBHOOK_READ_TIMEOUT = int(os.getenv('WEBHOOK_READ_TIMEOUT', 5))        # Тай
 
 # Ограничения на размеры данных
 WEBHOOK_MAX_HEADERS_SIZE = int(os.getenv('WEBHOOK_MAX_HEADERS_SIZE', 8192))  # 8 KB
+
+# ============================================
+# НАСТРОЙКИ ХРАНЕНИЯ ФАЙЛОВ
+# ============================================
+# Бэкенд хранения: local (пока только локальный диск)
+STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local').lower()
+
+# ============================================
+# ОБХОД ЛИМИТА РАЗМЕРА ФАЙЛА
+# ============================================
+# Секретный ключ для обхода лимита размера файла
+UNLIMITED_UPLOAD_SECRET = os.getenv('UNLIMITED_UPLOAD_SECRET', '')
+# Максимальный размер файла при использовании секрета (4 ГБ по умолчанию)
+MAX_UNLIMITED_FILE_SIZE = int(os.getenv('MAX_UNLIMITED_FILE_SIZE', 4294967296))
 
 # ============================================
 # ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ПУТИ С ДАТОЙ
@@ -164,9 +172,10 @@ RATE_LIMIT_DELETE = os.getenv('RATE_LIMIT_DELETE', '2/minute')
 # ============================================
 # ДИНАМИЧЕСКИЕ СООБЩЕНИЯ
 # ============================================
-def get_file_size_limit_text() -> str:
+def get_file_size_limit_text(max_size: int = None) -> str:
     """Возвращает текст с ограничением по размеру файла."""
-    size_mb = MAX_FILE_SIZE // 1048576
+    size = max_size if max_size is not None else MAX_FILE_SIZE
+    size_mb = size // 1048576
     return f"До {size_mb} МБ"
 
 def get_allowed_formats_text() -> str:
@@ -234,9 +243,9 @@ def get_allowed_formats_text() -> str:
     unique_formats = sorted(list(set(formats)))
     return ', '.join(unique_formats)
 
-def get_upload_hint_text() -> str:
+def get_upload_hint_text(max_size: int = None) -> str:
     """Возвращает полный текст подсказки для загрузки."""
-    size_text = get_file_size_limit_text()
+    size_text = get_file_size_limit_text(max_size)
     formats_text = get_allowed_formats_text()
     return f"{size_text}, поддерживаются: {formats_text}"
 
