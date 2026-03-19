@@ -22,8 +22,15 @@ class LocalStorage(StorageBackend):
     async def save(self, token: str, file_content: bytes, filename: str, mime_type: str) -> str:
         file_path = self._get_file_path(token, filename)
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        async with aiofiles.open(file_path, 'wb') as f:
-            await f.write(file_content)
+
+        # Проверка наличия места происходит в main.py, но добавим обработку ошибок
+        try:
+            async with aiofiles.open(file_path, 'wb') as f:
+                await f.write(file_content)
+        except OSError as e:
+            # Пробрасываем ошибку для обработки в main.py
+            raise e
+
         return f"/file/{token}"
 
     async def get(self, token: str, filename: str) -> Optional[str]:

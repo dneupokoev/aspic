@@ -11,8 +11,9 @@
 - ✅ **Принимаются любые файлы** — никаких ограничений по типу
 - ✅ **Предпросмотр** перед загрузкой с информацией о файле
 - ✅ **Автоматическое определение MIME-типа** по содержимому
-- ✅ **Обход лимита размера** через секретный параметр (до 4 ГБ)
+- ✅ **Обход лимита размера** через секретный параметр (до 4 ГБ) с безопасным хэш-токеном
 - ✅ **Автоматическая структура папок** по месяцам (YYYY/MM)
+- ✅ **Проверка свободного места** на диске перед загрузкой (настраиваемый порог)
 
 ### 🔗 Ссылки и доступ
 - ✅ Получение **вечной ссылки** на файл (живёт, пока кто-то не удалит)
@@ -48,6 +49,7 @@
 - ✅ **Защита от Path Traversal**: проверка имен файлов при загрузке
 - ✅ **Безопасный обход лимита**: хэш-токен в куке, срок жизни 1 час, защита от подделки
 - ✅ **HTTP-only куки** для user_id
+- ✅ **Проверка свободного места**: защита от заполнения диска
 
 ### 🎨 Интерфейс
 - ✅ **Адаптивный дизайн** для мобильных устройств
@@ -55,13 +57,14 @@
 - ✅ **Валидация форм** в реальном времени с подсветкой ошибок
 - ✅ **Информационные попапы** с пояснениями для всех полей
 - ✅ **Копирование ссылок** одним кликом с обратной связью
+- ✅ **Возможность отключения веб-интерфейса** загрузки файлов (режим API-only)
 
 ### 🛠 Технические особенности
 - ✅ Полная изоляция: файлы хранятся на диске, метаданные в SQLite
 - ✅ **WAL-режим** SQLite для лучшей производительности при конкурентном доступе
 - ✅ **Абстракция хранения**: поддержка локального диска и готовность к S3/MinIO
 - ✅ **Фоновые задачи** для очистки временных файлов
-- ✅ Гибкая настройка через `.env`
+- ✅ Гибкая настройка через `.env` с подробными комментариями
 - ✅ Готов к запуску в **Docker**
 - ✅ **Cleanup-скрипт** для физического удаления помеченных файлов
 
@@ -95,6 +98,13 @@
 
 > ⚠️ **Важно**: для загрузки файлов >100 МБ также увеличьте `client_max_body_size` в Nginx
 
+### Режим API-only (только API, без интерфейса загрузки)
+1. Установите в `.env`: `ENABLE_WEB_UI=False`
+2. Перезапустите сервер
+3. Главная страница (`/`) теперь возвращает 404
+4. Все существующие файлы доступны для просмотра (`/view/токен`)
+5. API продолжает работать в полном объеме
+
 ## 🛡️ Безопасность вебхуков (для администраторов)
 
 ASPIC включает многоуровневую защиту от злоупотреблений вебхуками:
@@ -120,7 +130,6 @@ ASPIC включает многоуровневую защиту от злоуп
 | **Срок жизни** | Кука действительна 1 час (3600 секунд) |
 | **Защита от подделки** | Используется `secrets.compare_digest()` для сравнения хэшей |
 | **HTTPS в production** | Кука передаётся только по HTTPS (`secure=not DEBUG`) |
-| **Недоступен из JS** | `httponly=False` для совместимости, но хэш бесполезен без секрета |
 
 > 🔒 **Важно**: без знания `UNLIMITED_UPLOAD_SECRET` из `.env` подделать токен невозможно.
 
@@ -146,7 +155,7 @@ aspic/
 │   ├── main.py              # основной код приложения
 │   ├── database.py          # работа с SQLite (aiosqlite)
 │   ├── webhook.py           # логика вебхуков (безопасность, вызовы, кэширование)
-│   ├── config.py            # конфигурация из .env
+│   ├── config.py            # конфигурация из .env (единый источник маппингов)
 │   ├── captcha.py           # простая капча
 │   ├── cleanup.py           # скрипт для физического удаления файлов
 │   ├── storage/             # абстракция хранения файлов
@@ -158,7 +167,8 @@ aspic/
 │   │   └── app.js
 │   └── templates/           # HTML-шаблоны
 │       ├── index.html       # главная страница (загрузка)
-│       └── view.html        # страница просмотра файла
+│       ├── view.html        # страница просмотра файла
+│       └── 404.html         # стилизованная страница 404 для режима API-only
 ├── data/                    # загруженные файлы и БД
 │   ├── files/               # постоянное хранилище (разбито по YYYY/MM)
 │   ├── preview/             # временные файлы для предпросмотра
@@ -170,8 +180,15 @@ aspic/
 
 ## ⚙️ Настройка
 
-Все настройки в файле `.env` с комментариями и описанием
+Все настройки в файле `.env` с подробными комментариями. Основные группы параметров:
 
+- **Основные настройки**: `DEBUG`, `HOST`, `PORT`
+- **Веб-интерфейс**: `ENABLE_WEB_UI` (включение/отключение загрузки)
+- **Пути к данным**: `UPLOAD_DIR`, `PREVIEW_DIR`, `DB_PATH`
+- **Rate limiting**: `RATE_LIMIT_UPLOAD`, `RATE_LIMIT_COMMENT`, `RATE_LIMIT_DELETE`
+- **Лимиты размера**: `MAX_FILE_SIZE`, `UNLIMITED_UPLOAD_SECRET`, `MAX_UNLIMITED_FILE_SIZE`
+- **Дисковое пространство**: `MIN_DISK_SPACE` (минимальный порог свободного места)
+- **Безопасность вебхуков**: таймауты, rate limiting, ограничения размера
 
 ## 🚀 Установка
 
@@ -187,6 +204,22 @@ docker run -d \
   -p 15191:15191 \
   -v $(pwd)/data:/opt/dix/aspic/data \
   aspic
+```
+
+Или через `docker-compose` (рекомендуется):
+
+```yaml
+version: '3.8'
+services:
+  aspic:
+    build: .
+    ports:
+      - "15191:15191"
+    volumes:
+      - ./data:/opt/dix/aspic/data
+    env_file:
+      - .env
+    restart: unless-stopped
 ```
 
 ### Напрямую
@@ -216,142 +249,7 @@ python -m app.main
 
 ## 🔧 Nginx конфигурация
 
-```nginx
-# Редирект с HTTP на HTTPS
-server {
-    listen 80;
-    listen [::]:80;
-    server_name aspic.YOU-DOMAIN.ru;
-
-    # Базовые заголовки безопасности для HTTP
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "SAMEORIGIN" always;
-
-    return 301 https://$host$request_uri;
-}
-
-# Основной HTTPS сервер
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name aspic.YOU-DOMAIN.ru;
-
-    # SSL-сертификаты
-    ssl_certificate /etc/letsencrypt/live/YOU-DOMAIN.ru/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/YOU-DOMAIN.ru/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
-    # ============================================
-    # ЗАГОЛОВКИ БЕЗОПАСНОСТИ
-    # ============================================
-    # HSTS - заставляет браузер всегда использовать HTTPS
-    add_header Strict-Transport-Security "max-age=63072000" always;
-
-    # Защита от угадывания MIME-типов
-    add_header X-Content-Type-Options "nosniff" always;
-
-    # Защита от clickjacking
-    add_header X-Frame-Options "SAMEORIGIN" always;
-
-    # Встроенный фильтр XSS
-    add_header X-XSS-Protection "1; mode=block" always;
-
-    # Контроль referrer
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-
-    # Для мобильных устройств - отключаем кэширование динамических страниц
-    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
-
-    # ============================================
-    # НАСТРОЙКИ ЗАГРУЗКИ ФАЙЛОВ
-    # ============================================
-    # Максимальный размер загружаемого файла - 4 ГБ
-    client_max_body_size 4096M;
-
-    # Буферы для больших файлов
-    client_body_buffer_size 256k;
-    client_header_buffer_size 2k;
-    large_client_header_buffers 4 16k;
-
-    # Таймауты (1 час для больших файлов)
-    client_body_timeout 3600s;
-    client_header_timeout 3600s;
-    keepalive_timeout 3600s;
-    send_timeout 3600s;
-
-    # ============================================
-    # СЖАТИЕ (для мобильных устройств)
-    # ============================================
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 1024;
-    gzip_types
-        text/plain
-        text/css
-        text/xml
-        text/javascript
-        application/json
-        application/javascript
-        application/xml+rss
-        application/xml
-        application/rss+xml
-        application/atom+xml
-        image/svg+xml
-        text/x-cross-word;
-    gzip_disable "msie6";
-    gzip_comp_level 5;
-    gzip_proxied any;
-
-    # ============================================
-    # ПРОКСИРОВАНИЕ НА ASPIC
-    # ============================================
-    location / {
-        proxy_pass http://127.0.0.1:15191;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-
-        # Убираем заголовок Content-Disposition, который может добавлять Nginx
-        proxy_hide_header Content-Disposition;
-
-        # Буферизация для больших файлов
-        proxy_buffering on;
-        proxy_buffer_size 8k;
-        proxy_buffers 16 8k;
-        proxy_busy_buffers_size 16k;
-
-        # Таймауты для больших файлов (1 час)
-        proxy_connect_timeout 3600s;
-        proxy_send_timeout 3600s;
-        proxy_read_timeout 3600s;
-
-        proxy_ignore_client_abort off;
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        proxy_cache off;
-    }
-
-    # ============================================
-    # СТАТИЧЕСКИЕ ФАЙЛЫ
-    # ============================================
-    location /static/ {
-        alias /opt/dix/aspic/app/static/;
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-        gzip_static on;
-    }
-
-    # ============================================
-    # ЛОГИРОВАНИЕ
-    # ============================================
-    error_log /var/log/nginx/aspic_error.log warn;
-    access_log /var/log/nginx/aspic_access.log combined buffer=32k flush=5s;
-}
-```
+Полная конфигурация с поддержкой больших файлов, заголовками безопасности и сжатием доступна в репозитории (`aspic.nginx`).
 
 ## 📡 API
 

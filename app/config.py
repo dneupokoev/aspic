@@ -1,7 +1,8 @@
 import os
 import ipaddress
+import shutil
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -13,12 +14,27 @@ load_dotenv()
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 HOST = os.getenv('HOST', '0.0.0.0')
 PORT = int(os.getenv('PORT', 15191))
+
+# ============================================
+# НАСТРОЙКИ ВЕБ-ИНТЕРФЕЙСА
+# ============================================
+ENABLE_WEB_UI = os.getenv('ENABLE_WEB_UI', 'True').lower() == 'true'
+
+# ============================================
+# НАСТРОЙКИ ПУТЕЙ К ДАННЫМ
+# ============================================
 UPLOAD_DIR = os.getenv('UPLOAD_DIR', '/opt/dix/aspic/data/files')
 PREVIEW_DIR = os.getenv('PREVIEW_DIR', '/opt/dix/aspic/data/preview')
 DB_PATH = os.getenv('DB_PATH', '/opt/dix/aspic/data/aspic.db')
 PREVIEW_TTL = int(os.getenv('PREVIEW_TTL_SECONDS', 3600))
 MAX_FILE_SIZE = int(os.getenv('MAX_FILE_SIZE', 104857600))  # 100 MB
 TOKEN_LENGTH = int(os.getenv('TOKEN_LENGTH', 8))
+
+# ============================================
+# НАСТРОЙКИ ДИСКОВОГО ПРОСТРАНСТВА
+# ============================================
+# Минимальное свободное место на диске (в байтах), по умолчанию 20 ГБ
+MIN_DISK_SPACE = int(os.getenv('MIN_DISK_SPACE', 20 * 1024 * 1024 * 1024))  # 20 GB in bytes
 
 # ============================================
 # НАСТРОЙКИ ДЛЯ ВЕБХУКОВ
@@ -86,6 +102,68 @@ STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local').lower()
 UNLIMITED_UPLOAD_SECRET = os.getenv('UNLIMITED_UPLOAD_SECRET', '')
 # Максимальный размер файла при использовании секрета (4 ГБ по умолчанию)
 MAX_UNLIMITED_FILE_SIZE = int(os.getenv('MAX_UNLIMITED_FILE_SIZE', 4294967296))
+
+
+# ============================================
+# ФУНКЦИИ ДЛЯ ПРОВЕРКИ ДИСКОВОГО ПРОСТРАНСТВА
+# ============================================
+def check_disk_space(required_bytes: int, path: str = None) -> Tuple[bool, int, str]:
+    """
+    Проверяет, достаточно ли свободного места на диске.
+
+    Args:
+        required_bytes: Требуемое количество байт
+        path: Путь для проверки (по умолчанию UPLOAD_DIR)
+
+    Returns:
+        Tuple[bool, int, str]: (достаточно ли места, свободно байт, человекочитаемая строка)
+    """
+    if path is None:
+        path = UPLOAD_DIR
+
+    try:
+        # Создаем директорию, если её нет
+        Path(path).mkdir(parents=True, exist_ok=True)
+
+        # Получаем информацию о диске
+        stat = shutil.disk_usage(path)
+        free_bytes = stat.free
+
+        # Форматируем для вывода
+        free_formatted = format_bytes(free_bytes)
+        required_formatted = format_bytes(required_bytes)
+
+        # Проверяем, хватит ли места с учетом минимального порога
+        # Нужно, чтобы после загрузки осталось MIN_DISK_SPACE
+        will_remain = free_bytes - required_bytes
+        enough = will_remain >= MIN_DISK_SPACE
+
+        if not enough:
+            print(f"⚠️ Недостаточно места: свободно {free_formatted}, требуется {required_formatted}, минимальный порог {format_bytes(MIN_DISK_SPACE)}")
+
+        return enough, free_bytes, free_formatted
+
+    except Exception as e:
+        print(f"⚠️ Ошибка проверки дискового пространства: {e}")
+        # В случае ошибки лучше пропустить проверку, чем блокировать загрузку
+        return True, 0, "неизвестно"
+
+
+def format_bytes(bytes_count: int) -> str:
+    """Форматирует байты в человекочитаемый вид."""
+    if bytes_count < 1024:
+        return f"{bytes_count} Б"
+    elif bytes_count < 1024 * 1024:
+        return f"{bytes_count / 1024:.1f} КБ"
+    elif bytes_count < 1024 * 1024 * 1024:
+        return f"{bytes_count / (1024 * 1024):.1f} МБ"
+    else:
+        return f"{bytes_count / (1024 * 1024 * 1024):.1f} ГБ"
+
+
+def get_disk_space_warning() -> str:
+    """Возвращает предупреждение о минимальном свободном месте."""
+    return f"На сервере должно оставаться минимум {format_bytes(MIN_DISK_SPACE)} свободного места"
 
 
 # ============================================
@@ -287,3 +365,8 @@ def get_upload_hint_text(max_size: int = None) -> str:
 def get_not_found_message() -> str:
     """Возвращает сообщение о ненайденном файле."""
     return "Файл не найден или был удален"
+
+
+def get_api_only_message() -> str:
+    """Возвращает сообщение для режима API-only."""
+    return "Веб-интерфейс ЗАГРУЗКИ ФАЙЛОВ отключен."

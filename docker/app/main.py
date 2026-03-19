@@ -37,8 +37,8 @@ from app.config import (
     RATE_LIMIT_UPLOAD, RATE_LIMIT_COMMENT, RATE_LIMIT_DELETE,
     WEBHOOK_TIMEOUT, WEBHOOK_CACHE_TTL,
     get_upload_hint_text, get_not_found_message, get_file_size_limit_text,
-    get_dated_upload_path,
-    STORAGE_BACKEND,
+    get_dated_upload_path, get_api_only_message,
+    STORAGE_BACKEND, ENABLE_WEB_UI,
     # для обхода лимита размера
     UNLIMITED_UPLOAD_SECRET, MAX_UNLIMITED_FILE_SIZE,
     EXT_TO_MIME, PREVIEW_MIME_MAP
@@ -168,6 +168,22 @@ def set_unlimited_upload_cookie(response, timestamp: float, salt: str) -> None:
 
 
 # ============================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ЗАГЛУШКИ 404
+# ============================================
+async def api_only_404_page(request: Request) -> HTMLResponse:
+    """Возвращает стилизованную страницу 404 для режима API-only."""
+    return templates.TemplateResponse(
+        "404.html",
+        {
+            "request": request,
+            "message": get_api_only_message(),
+            "enable_web_ui": ENABLE_WEB_UI
+        },
+        status_code=404
+    )
+
+
+# ============================================
 # LIFESPAN
 # ============================================
 @asynccontextmanager
@@ -183,12 +199,14 @@ async def lifespan(app: FastAPI):
     }
     file_storage = get_storage_backend(storage_config)
 
+    web_ui_status = "включен (загрузка и просмотр)" if ENABLE_WEB_UI else "ОТКЛЮЧЕН (доступен только просмотр существующих файлов)"
     print(f"✅ ASPIC запущен на порту {PORT}")
     print(f"📁 Постоянное хранилище: {UPLOAD_DIR}")
     print(f"📁 Временное хранилище: {PREVIEW_DIR}")
     print(f"💾 База данных: {DB_PATH}")
     print(f"📊 Режим: принимаем любые файлы, отображаем поддерживаемые")
     print(f"🔧 Режим DEBUG: {DEBUG}")
+    print(f"🌐 Веб-интерфейс: {web_ui_status}")
     print(f"🔗 Webhook timeout: {WEBHOOK_TIMEOUT}s, cache TTL: {WEBHOOK_CACHE_TTL}s")
 
     yield
@@ -241,8 +259,14 @@ async def not_found_handler(request: Request, exc):
             status_code=404,
             content={"detail": "Ресурс не найден"}
         )
+
     # Для всех остальных страниц - перенаправляем на главную с сообщением об ошибке
-    return RedirectResponse(url="/?error=not_found", status_code=303)
+    # Но только если веб-интерфейс включен
+    if ENABLE_WEB_UI:
+        return RedirectResponse(url="/?error=not_found", status_code=303)
+    else:
+        # В режиме API-only возвращаем стилизованную 404
+        return await api_only_404_page(request)
 
 
 # ============================================
@@ -378,10 +402,14 @@ async def verify_file_access(
 
 
 # ============================================
-# ГЛАВНАЯ СТРАНИЦА
+# ГЛАВНАЯ СТРАНИЦА (ЗАГРУЗКА)
 # ============================================
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, error: str = None):
+    # Если веб-интерфейс отключен, загрузка недоступна - возвращаем 404
+    if not ENABLE_WEB_UI:
+        return await api_only_404_page(request)
+
     user_id = generate_user_id(request)
     error_message = None
 
@@ -433,10 +461,13 @@ async def index(request: Request, error: str = None):
 @app.get("/view/{token}", response_class=HTMLResponse)
 async def view_file(request: Request, token: str):
     """Страница с предпросмотром и информацией о файле."""
+    # Просмотр доступен ВСЕГДА, даже если веб-интерфейс отключен!
+    # Не проверяем ENABLE_WEB_UI здесь
+
     # Проверяем доступ к файлу (и увеличиваем счетчик просмотров)
     file_info = await verify_file_access(token, request, check_view=True)
     if not file_info:
-        return RedirectResponse(url=f"/?error=not_found", status_code=303)
+        return RedirectResponse(url="/?error=not_found", status_code=303)
 
     # Получаем дополнительную информацию о файле
     file_path = Path(file_info['file_path'])
@@ -621,6 +652,19 @@ async def create_preview(
             detail=f"Файл слишком большой. {get_file_size_limit_text(effective_max_size)}"
         )
 
+    # Проверка свободного места на диске
+    from app.config import check_disk_space, get_disk_space_warning, MIN_DISK_SPACE, format_bytes
+
+    enough_space, free_bytes, free_formatted = check_disk_space(len(file_data))
+    if not enough_space:
+        error_msg = (f"На сервере недостаточно свободного места. "
+                     f"Свободно {free_formatted}, требуется ещё минимум {format_bytes(MIN_DISK_SPACE)} "
+                     f"после загрузки. Попробуйте позже или обратитесь к администратору.")
+        print(f"❌ {error_msg}")
+        raise HTTPException(status_code=507, detail=error_msg)
+
+    print(f"💾 Проверка места: свободно {free_formatted}, требуется {format_bytes(len(file_data))}, порог {format_bytes(MIN_DISK_SPACE)}")
+
     # ОПРЕДЕЛЕНИЕ MIME-ТИПА с помощью python-magic (по содержимому, а не по расширению)
     mime_type = "application/octet-stream"
 
@@ -651,6 +695,14 @@ async def create_preview(
         async with aiofiles.open(temp_path, "wb") as f:
             await f.write(file_data)
         print(f"💾 Временный файл сохранен: {temp_path}")
+    except OSError as e:
+        # Ошибка диска (например, нет места)
+        if "No space left on device" in str(e):
+            raise HTTPException(
+                status_code=507,
+                detail="На сервере закончилось свободное место. Попробуйте позже."
+            )
+        raise HTTPException(status_code=500, detail=f"Ошибка сохранения временного файла: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка сохранения временного файла: {e}")
 
@@ -722,6 +774,23 @@ async def confirm_upload(
         raise HTTPException(status_code=404, detail="Временный файл не найден")
 
     temp_path = preview_files[0]
+
+    # Проверка свободного места на диске перед финальным сохранением
+    from app.config import check_disk_space, get_disk_space_warning, MIN_DISK_SPACE, format_bytes
+
+    enough_space, free_bytes, free_formatted = check_disk_space(size)
+    if not enough_space:
+        error_msg = (f"На сервере недостаточно свободного места. "
+                     f"Свободно {free_formatted}, требуется ещё минимум {format_bytes(MIN_DISK_SPACE)} "
+                     f"после загрузки. Попробуйте позже или обратитесь к администратору.")
+        print(f"❌ {error_msg}")
+        # Удаляем временный файл
+        try:
+            temp_path.unlink()
+        except:
+            pass
+        raise HTTPException(status_code=507, detail=error_msg)
+
     token = generate_token()
     ext = temp_path.suffix
 
@@ -752,6 +821,14 @@ async def confirm_upload(
                 file_content = await f.read()
             public_path = await file_storage.save(token, file_content, filename, mime_type)
             print(f"✅ Файл сохранен через storage: {public_path}")
+    except OSError as e:
+        # Ошибка диска (например, нет места)
+        if "No space left on device" in str(e):
+            raise HTTPException(
+                status_code=507,
+                detail="На сервере закончилось свободное место. Попробуйте позже."
+            )
+        raise HTTPException(status_code=500, detail=f"Ошибка при сохранении файла: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении файла: {e}")
 
