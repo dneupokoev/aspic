@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>ASPIC — файловый хостинг</title>
+    <title>ASPIC - файловый хостинг</title>
     <link rel="icon"
           href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='80' font-size='80' text-anchor='middle' font-family='Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif'%3E📦%3C/text%3E%3C/svg%3E"
           type="image/svg+xml">
@@ -11,7 +11,10 @@
 </head>
 <body>
 <div class="app-container">
-    <header class="app-header compact" id="appHeader">
+    <header class="app-header">
+        <nav class="app-nav">
+            <!-- Здесь может быть что-то, но пока пусто -->
+        </nav>
         <h1 class="app-title">📦 ASPIC</h1>
         <p class="app-subtitle">Минималистичный файловый хостинг без регистрации и сроков хранения</p>
     </header>
@@ -111,7 +114,7 @@
                                 <ol>
                                     <li>При каждой попытке открыть файл ASPIC отправляет GET-запрос на ваш URL</li>
                                     <li>В запрос автоматически добавляются все параметры из ссылки (например, <code>?order_id=123&user=john</code>)</li>
-                                    <li>Ваш API должен вернуть JSON: <code>{"allowed": "1"}</code> — доступ разрешён, <code>{"allowed": "0"}</code> — доступ
+                                    <li>Ваш API должен вернуть JSON: <code>{"allowed": "1"}</code> - доступ разрешён, <code>{"allowed": "0"}</code> - доступ
                                         запрещён
                                     </li>
                                 </ol>
@@ -228,7 +231,7 @@
     </main>
 
     <footer class="app-footer">
-        <p>ASPIC — A Simple Public Image/File Cloud · <a href="https://github.com/dneupokoev/aspic" target="_blank" rel="noopener">GitHub</a></p>
+        <p>ASPIC - A Simple Public Image/File Cloud · <a href="https://github.com/dneupokoev/aspic" target="_blank" rel="noopener">GitHub</a></p>
     </footer>
 </div>
 

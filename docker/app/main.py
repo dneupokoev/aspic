@@ -5,6 +5,7 @@ import time
 import shutil
 import hashlib
 import random
+import html
 from pathlib import Path
 from typing import Optional, List, Dict
 from contextlib import asynccontextmanager
@@ -43,6 +44,10 @@ from app.config import (
     UNLIMITED_UPLOAD_SECRET, MAX_UNLIMITED_FILE_SIZE,
     EXT_TO_MIME, PREVIEW_MIME_MAP
 )
+
+# Константы для ограничений длины текста
+MAX_COMMENT_LENGTH = 1000
+MAX_DELETE_REASON_LENGTH = 200
 
 # Для работы с изображениями
 try:
@@ -123,7 +128,7 @@ def check_unlimited_upload_access(request: Request) -> bool:
 
     Возвращает True если доступ разрешён, False иначе.
     """
-    # Если секрет не настроен — доступ к большим файлам отключён
+    # Если секрет не настроен - доступ к большим файлам отключён
     if not UNLIMITED_UPLOAD_SECRET:
         return False
 
@@ -184,6 +189,16 @@ async def api_only_404_page(request: Request) -> HTMLResponse:
 
 
 # ============================================
+# ФУНКЦИИ ДЛЯ ЭСКАПИРОВАНИЯ HTML
+# ============================================
+def escape_html(text: str) -> str:
+    """Экранирует HTML-спецсимволы для защиты от XSS."""
+    if text is None:
+        return ""
+    return html.escape(str(text))
+
+
+# ============================================
 # LIFESPAN
 # ============================================
 @asynccontextmanager
@@ -225,7 +240,7 @@ redoc_url = "/redoc" if DEBUG else None
 app = FastAPI(
     debug=DEBUG,
     title="ASPIC",
-    description="A Simple Public Image/File Cloud — минималистичный файловый хостинг с комментариями",
+    description="A Simple Public Image/File Cloud - минималистичный файловый хостинг с комментариями",
     version="0.1.0",
     lifespan=lifespan,
     openapi_url="/openapi.json" if DEBUG else None,
@@ -435,7 +450,7 @@ async def index(request: Request, error: str = None):
         }
     )
 
-    # Если пользователь ввёл правильный секрет — устанавливаем куку на 1 час
+    # Если пользователь ввёл правильный секрет - устанавливаем куку на 1 час
     upload_secret = request.query_params.get('upload_secret', '')
     if UNLIMITED_UPLOAD_SECRET and upload_secret == UNLIMITED_UPLOAD_SECRET:
         timestamp = time.time()
@@ -477,6 +492,12 @@ async def view_file(request: Request, token: str):
         extra_info['image'] = await get_image_info(file_path)
 
     comments = await get_comments(token)
+
+    # Экранируем комментарии для защиты от XSS
+    for comment in comments:
+        comment['author'] = escape_html(comment['author'])
+        comment['text'] = escape_html(comment['text'])
+
     client_ip = request.client.host
     captcha = captcha_store.generate(token, client_ip)
 
@@ -504,7 +525,9 @@ async def view_file(request: Request, token: str):
             "format_file_size": format_file_size,
             "get_file_icon": get_file_icon,
             "get_file_type_name": get_file_type_name,
-            "query_string": query_string
+            "query_string": query_string,
+            "max_comment_length": MAX_COMMENT_LENGTH,
+            "max_delete_reason_length": MAX_DELETE_REASON_LENGTH
         }
     )
 
@@ -529,7 +552,7 @@ async def preview_file(request: Request, token: str):
         else:
             raise HTTPException(status_code=404, detail="Файл не найден")
 
-    # Используем абстракцию хранилища — теперь get() возвращает путь как строку
+    # Используем абстракцию хранилища - теперь get() возвращает путь как строку
     file_path = await file_storage.get(token, file_info['filename'])
     if not file_path:
         # Если файл не найден в хранилище, отдаем заглушку
@@ -565,7 +588,7 @@ async def download_file(request: Request, token: str):
     # Увеличиваем счетчик скачиваний
     await increment_download_count(token)
 
-    # Используем абстракцию хранилища — теперь get() возвращает путь как строку
+    # Используем абстракцию хранилища - теперь get() возвращает путь как строку
     file_path = await file_storage.get(token, file_info['filename'])
     if not file_path:
         raise HTTPException(status_code=404, detail="Файл не найден в хранилище")
@@ -902,7 +925,18 @@ async def add_comment_to_file(
             content={"detail": "Комментарий не может быть пустым"}
         )
 
-    await add_comment(token, author.strip(), comment.strip(), 'comment')
+    # Ограничение длины комментария
+    if len(comment) > MAX_COMMENT_LENGTH:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": f"Комментарий не может быть длиннее {MAX_COMMENT_LENGTH} символов"}
+        )
+
+    # Экранируем HTML-спецсимволы для защиты от XSS
+    safe_author = escape_html(author.strip())
+    safe_comment = escape_html(comment.strip())
+
+    await add_comment(token, safe_author, safe_comment, 'comment')
 
     return JSONResponse(
         status_code=200,
@@ -969,8 +1003,18 @@ async def delete_file(
     if not author or not author.strip():
         author = "ЗЛОБНЫЙ_АНОНИМ"
 
+    # Ограничение длины причины удаления
+    if delete_reason and len(delete_reason) > MAX_DELETE_REASON_LENGTH:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": f"Причина удаления не может быть длиннее {MAX_DELETE_REASON_LENGTH} символов"}
+        )
+
     if delete_reason and delete_reason.strip():
-        await add_comment(token, author.strip(), f"Файл удален. Причина: {delete_reason}", 'deletion_reason')
+        # Экранируем HTML-спецсимволы для защиты от XSS
+        safe_author = escape_html(author.strip())
+        safe_reason = escape_html(delete_reason.strip())
+        await add_comment(token, safe_author, f"Файл удален. Причина: {safe_reason}", 'deletion_reason')
 
     # Soft delete в БД
     await mark_file_as_deleted(token, delete_reason)
@@ -997,7 +1041,14 @@ async def get_file_comments(token: str):
     file_info = await get_file_metadata(token, include_deleted=True)
     if not file_info:
         raise HTTPException(status_code=404, detail="Файл не найден")
+
     comments = await get_comments(token)
+
+    # Экранируем комментарии для API
+    for comment in comments:
+        comment['author'] = escape_html(comment['author'])
+        comment['text'] = escape_html(comment['text'])
+
     return {"comments": comments}
 
 
