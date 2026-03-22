@@ -30,7 +30,6 @@ async def init_db(db_path: str = DB_PATH):
 
         if not table_exists:
             print("🆕 Создание новой базы данных...")
-            # Таблица файлов с новыми полями
             await db.execute('''
                 CREATE TABLE files (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,7 +47,9 @@ async def init_db(db_path: str = DB_PATH):
                     last_view_date DATE, -- Дата последнего просмотра (без времени для производительности)
                     last_download_date DATE, -- Дата последнего скачивания (без времени для производительности)
                     webhook_url TEXT DEFAULT '', -- URL вебхука для вызова при попытке доступа к файлу
-                    delete_password TEXT DEFAULT '' -- Пароль для удаления файла
+                    delete_password TEXT DEFAULT '', -- Пароль для удаления файла
+                    expire_date TIMESTAMP, -- Дата и время автоматического удаления файла (абсолютная дата)
+                    ttl_minutes INTEGER DEFAULT 0 -- Время жизни после последнего обращения (в минутах, 0 = без ограничения)
                 )
             ''')
 
@@ -72,6 +73,7 @@ async def init_db(db_path: str = DB_PATH):
             await db.execute('CREATE INDEX idx_files_active_view ON files(last_view_date) WHERE deleted = 0')
             await db.execute('CREATE INDEX idx_files_active_download ON files(last_download_date) WHERE deleted = 0')
             await db.execute('CREATE INDEX idx_files_webhook ON files(webhook_url) WHERE webhook_url != ""')
+            await db.execute('CREATE INDEX idx_files_expire ON files(expire_date) WHERE deleted = 0 AND expire_date IS NOT NULL')
             await db.execute('CREATE INDEX idx_comments_file_token ON comments(file_token)')
 
             await db.commit()
@@ -112,6 +114,15 @@ async def init_db(db_path: str = DB_PATH):
             if 'delete_password' not in files_columns:
                 print("🔄 Обновление таблицы files: добавляем поле delete_password...")
                 await db.execute("ALTER TABLE files ADD COLUMN delete_password TEXT DEFAULT ''")
+
+            # Добавляем новые поля для автоматического удаления
+            if 'expire_date' not in files_columns:
+                print("🔄 Обновление таблицы files: добавляем поле expire_date...")
+                await db.execute("ALTER TABLE files ADD COLUMN expire_date TIMESTAMP")
+
+            if 'ttl_minutes' not in files_columns:
+                print("🔄 Обновление таблицы files: добавляем поле ttl_minutes...")
+                await db.execute("ALTER TABLE files ADD COLUMN ttl_minutes INTEGER DEFAULT 0")
 
             # === ОПТИМИЗАЦИЯ ИНДЕКСОВ ===
 
@@ -158,6 +169,13 @@ async def init_db(db_path: str = DB_PATH):
                 print("🔄 Создаем индекс для вебхуков idx_files_webhook...")
                 await db.execute("CREATE INDEX idx_files_webhook ON files(webhook_url) WHERE webhook_url != ''")
 
+            # Индекс для автоматического удаления по дате
+            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_files_expire'")
+            index_exists = await cursor.fetchone()
+            if not index_exists and 'expire_date' in files_columns:
+                print("🔄 Создаем индекс для автоудаления idx_files_expire...")
+                await db.execute("CREATE INDEX idx_files_expire ON files(expire_date) WHERE deleted = 0 AND expire_date IS NOT NULL")
+
             # Проверяем старые индексы на всякий случай (могли остаться)
             cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_files_last_view_date'")
             if await cursor.fetchone():
@@ -187,8 +205,10 @@ async def save_file_metadata(
         mime_type: str,
         size: int,
         file_path: str,
-        webhook_url: str = '',  # новый параметр
-        delete_password: str = '',  # новый параметр
+        webhook_url: str = '',
+        delete_password: str = '',
+        expire_date: str = None,  # дата удаления
+        ttl_minutes: int = 0,      # TTL после последнего обращения
         db_path: str = DB_PATH
 ) -> None:
     """Сохраняет метаданные загруженного файла."""
@@ -224,6 +244,16 @@ async def save_file_metadata(
                 values.append(current_date)
                 placeholders.append('?')
 
+            if 'expire_date' in columns and expire_date:
+                fields.append('expire_date')
+                values.append(expire_date)
+                placeholders.append('?')
+
+            if 'ttl_minutes' in columns and ttl_minutes:
+                fields.append('ttl_minutes')
+                values.append(ttl_minutes)
+                placeholders.append('?')
+
             query = f'''
                 INSERT INTO files ({', '.join(fields)})
                 VALUES ({', '.join(placeholders)})
@@ -256,6 +286,16 @@ async def save_file_metadata(
                 values.append(current_date)
                 placeholders.append('?')
 
+            if 'expire_date' in columns and expire_date:
+                fields.append('expire_date')
+                values.append(expire_date)
+                placeholders.append('?')
+
+            if 'ttl_minutes' in columns and ttl_minutes:
+                fields.append('ttl_minutes')
+                values.append(ttl_minutes)
+                placeholders.append('?')
+
             query = f'''
                 INSERT INTO files ({', '.join(fields)})
                 VALUES ({', '.join(placeholders)})
@@ -284,7 +324,8 @@ async def get_file_metadata(
                        'delete_date', 'delete_reason']
 
         # Добавляем новые поля, если они существуют
-        optional_fields = ['last_view_date', 'last_download_date', 'webhook_url', 'delete_password']
+        optional_fields = ['last_view_date', 'last_download_date', 'webhook_url', 'delete_password',
+                           'expire_date', 'ttl_minutes']
         for field in optional_fields:
             if field in columns:
                 base_fields.append(field)
@@ -342,6 +383,12 @@ async def get_file_metadata(
                 field_index += 1
             if 'delete_password' in columns and len(row) > field_index:
                 result['delete_password'] = row[field_index]
+                field_index += 1
+            if 'expire_date' in columns and len(row) > field_index:
+                result['expire_date'] = row[field_index]
+                field_index += 1
+            if 'ttl_minutes' in columns and len(row) > field_index:
+                result['ttl_minutes'] = row[field_index]
 
             return result
         return None

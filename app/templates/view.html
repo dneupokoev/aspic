@@ -109,6 +109,36 @@
                 </div>
             </div>
 
+            <!-- Информация об автоматическом удалении -->
+            {% if file.expire_date or file.ttl_minutes %}
+            <div class="file-stats">
+                <div class="stat-row">
+                    <span class="stat-label">Автоудаление:</span>
+                    <span class="stat-value">
+                        {% if file.expire_date and file.ttl_minutes %}
+                            По первому из условий
+                        {% elif file.expire_date %}
+                            {{ format_datetime_for_display(file.expire_date) }}
+                        {% elif file.ttl_minutes %}
+                            {{ format_ttl(file.ttl_minutes) }} после последнего обращения
+                        {% endif %}
+                    </span>
+                </div>
+                {% if file.expire_date %}
+                <div class="stat-row">
+                    <span class="stat-label">Удалить до:</span>
+                    <span class="stat-value">{{ format_datetime_for_display(file.expire_date) }}</span>
+                </div>
+                {% endif %}
+                {% if file.ttl_minutes %}
+                <div class="stat-row">
+                    <span class="stat-label">TTL:</span>
+                    <span class="stat-value">{{ format_ttl(file.ttl_minutes) }} после последнего просмотра/скачивания</span>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
             {% if extra_info and extra_info.image %}
             <div class="file-stats">
                 <div class="stat-row">

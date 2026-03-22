@@ -186,7 +186,53 @@
                     </div>
                 </div>
             </div>
-            <!-- КОНЕЦ НОВЫХ ПОЛЕЙ -->
+
+            <!-- Настройки автоматического удаления -->
+            <div class="preview-options compact" id="expireField" style="display: none;">
+                <div class="compact-field">
+                    <div class="field-header">
+                        <span class="label-icon">⏰</span>
+                        <span class="field-label">Удалить после</span>
+                        <button type="button" class="info-btn" onclick="showInfo('expire')" title="Что это?">i</button>
+                    </div>
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <div style="flex: 1;">
+                            <label style="font-size: 0.8rem; color: var(--gray);">Конкретная дата</label>
+                            <input type="date"
+                                   id="expireDate"
+                                   name="expire_date"
+                                   class="compact-input"
+                                   placeholder="ГГГГ-ММ-ДД">
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="font-size: 0.8rem; color: var(--gray);">Или минут после последнего просмотра</label>
+                            <input type="number"
+                                   id="ttlMinutes"
+                                   name="ttl_minutes"
+                                   class="compact-input"
+                                   placeholder="0 - без ограничения"
+                                   min="0"
+                                   max="525600"
+                                   step="60">
+                        </div>
+                    </div>
+                    <div id="expireInfo" class="info-popup hidden">
+                        <div class="info-content">
+                            <strong>⏰ Автоматическое удаление</strong>
+                            <p>Вы можете настроить автоматическое удаление файла одним из способов:</p>
+                            <ul>
+                                <li><strong>Конкретная дата</strong> — файл будет удалён в указанный день в 00:00</li>
+                                <li><strong>Минут после последнего обращения</strong> — файл будет удалён через указанное время после последнего просмотра или скачивания</li>
+                            </ul>
+                            <p>Если оба поля заполнены — файл будет удалён по тому условию, которое наступит раньше.</p>
+                            <div class="info-note">
+                                <strong>📌 Пример:</strong> Укажите "30 минут" — файл будет удалён через 30 минут после того, как его в последний раз открыли или скачали.
+                            </div>
+                            <span class="info-close" onclick="hideInfo('expire')">✕</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <div class="preview-actions">
                 <button class="btn btn-primary" id="confirmBtn">

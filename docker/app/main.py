@@ -199,6 +199,20 @@ def escape_html(text: str) -> str:
 
 
 # ============================================
+# ФУНКЦИИ ДЛЯ РАБОТЫ С ДАТАМИ
+# ============================================
+def parse_expire_date(expire_date_str: str) -> Optional[str]:
+    """Парсит дату из строки формата YYYY-MM-DD и возвращает ISO строку."""
+    if not expire_date_str:
+        return None
+    try:
+        dt = datetime.strptime(expire_date_str, "%Y-%m-%d")
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
+# ============================================
 # LIFESPAN
 # ============================================
 @asynccontextmanager
@@ -367,6 +381,28 @@ def get_file_type_name(mime_type: str) -> str:
     return type_map.get(mime_type, 'Файл')
 
 
+def format_datetime_for_display(dt_str: str) -> str:
+    """Форматирует дату для отображения."""
+    if not dt_str:
+        return "Не установлено"
+    try:
+        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+        return dt.strftime("%d.%m.%Y %H:%M")
+    except ValueError:
+        return dt_str[:16] if len(dt_str) > 16 else dt_str
+
+
+def format_ttl(ttl_minutes: int) -> str:
+    """Форматирует TTL для отображения."""
+    if not ttl_minutes or ttl_minutes == 0:
+        return "Без ограничения"
+    if ttl_minutes < 60:
+        return f"{ttl_minutes} минут"
+    if ttl_minutes < 1440:
+        return f"{ttl_minutes // 60} часов {ttl_minutes % 60} минут"
+    return f"{ttl_minutes // 1440} дней {ttl_minutes % 1440 // 60} часов"
+
+
 async def get_image_info(file_path: Path) -> Optional[Dict]:
     """Получает информацию об изображении."""
     if not HAS_PIL:
@@ -511,6 +547,12 @@ async def view_file(request: Request, token: str):
     if request.query_params:
         query_string = f"?{request.query_params}"
 
+    # Подготавливаем информацию о сроках жизни файла
+    expire_info = {
+        'expire_date': format_datetime_for_display(file_info.get('expire_date', '')),
+        'ttl_minutes': format_ttl(file_info.get('ttl_minutes', 0))
+    }
+
     return templates.TemplateResponse(
         "view.html",
         {
@@ -527,7 +569,10 @@ async def view_file(request: Request, token: str):
             "get_file_type_name": get_file_type_name,
             "query_string": query_string,
             "max_comment_length": MAX_COMMENT_LENGTH,
-            "max_delete_reason_length": MAX_DELETE_REASON_LENGTH
+            "max_delete_reason_length": MAX_DELETE_REASON_LENGTH,
+            "expire_info": expire_info,
+            "format_datetime_for_display": format_datetime_for_display,
+            "format_ttl": format_ttl
         }
     )
 
@@ -622,6 +667,8 @@ async def get_file_info(request: Request, token: str):
         "views": file_info['views'],
         "downloads": file_info['downloads'],
         "has_webhook": bool(file_info.get('webhook_url')),
+        "expire_date": file_info.get('expire_date'),
+        "ttl_minutes": file_info.get('ttl_minutes', 0),
         "page_url": f"/view/{token}",
         "preview_url": file_storage.get_public_path(token, file_info['filename']),
         "download_url": f"/download/{token}"
@@ -781,6 +828,8 @@ async def confirm_upload(
     text_content = data.get("text_content")
     webhook_url = data.get("webhook_url", "")
     delete_password = data.get("delete_password", "")
+    expire_date = data.get("expire_date", "")  # дата удаления
+    ttl_minutes = data.get("ttl_minutes", 0)    # TTL после последнего обращения
 
     # Валидация полей
     if webhook_url and (len(webhook_url) < 4 or len(webhook_url) > 1024):
@@ -789,8 +838,23 @@ async def confirm_upload(
     if delete_password and (len(delete_password) < 4 or len(delete_password) > 16):
         raise HTTPException(status_code=400, detail="delete_password должен быть от 4 до 16 символов")
 
+    if ttl_minutes:
+        ttl_minutes = int(ttl_minutes)
+        if ttl_minutes < 0 or ttl_minutes > 525600:  # максимум 1 год в минутах
+            raise HTTPException(status_code=400, detail="ttl_minutes должен быть от 0 до 525600")
+
     if not preview_id:
         raise HTTPException(status_code=400, detail="preview_id обязателен")
+
+    # Парсим дату удаления
+    expire_date_parsed = None
+    if expire_date:
+        try:
+            # Ожидаем формат YYYY-MM-DD или ISO
+            dt = datetime.strptime(expire_date[:10], "%Y-%m-%d")
+            expire_date_parsed = dt.strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Неверный формат даты удаления. Используйте YYYY-MM-DD")
 
     preview_files = list(Path(PREVIEW_DIR).glob(f"{preview_id}.*"))
     if not preview_files:
@@ -863,7 +927,9 @@ async def confirm_upload(
             size=size,
             file_path=public_path,
             webhook_url=webhook_url,
-            delete_password=delete_password
+            delete_password=delete_password,
+            expire_date=expire_date_parsed,
+            ttl_minutes=ttl_minutes
         )
         print(f"💾 Метаданные сохранены для токена: {token}")
     except Exception as e:
@@ -888,7 +954,9 @@ async def confirm_upload(
         "file_url": view_path,
         "preview_url": file_path,
         "download_url": download_path,
-        "has_webhook": bool(webhook_url)
+        "has_webhook": bool(webhook_url),
+        "expire_date": expire_date_parsed,
+        "ttl_minutes": ttl_minutes
     }
 
 
