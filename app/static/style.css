@@ -1914,59 +1914,68 @@ body {
    СТИЛИ ДЛЯ АВТОУДАЛЕНИЯ
    ============================================ */
 
-/* Убеждаемся, что поля видны на всех устройствах */
-.preview-options.compact {
-    display: block !important;
-}
-
-/* Форсированное отображение полей автоудаления */
-#expireField {
-    display: block !important;
-    visibility: visible !important;
-}
-
-#expireField .compact-field {
-    display: flex !important;
-    flex-direction: column !important;
-}
-
-#expireDate, #ttlHours {
+/* Гарантируем, что блок с информацией об автоудалении всегда виден */
+.expire-info {
     display: block !important;
     width: 100% !important;
-    box-sizing: border-box !important;
+    border-left: 3px solid var(--warning);
+    margin-top: 0.75rem;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem !important;
+    background: var(--light);
+    border-radius: var(--border-radius-sm);
+    box-sizing: border-box;
 }
 
-/* На мобильных устройствах поля становятся вертикальными */
+/* На мобильных устройствах принудительно показываем все строки */
 @media (max-width: 768px) {
-    .expire-fields-row {
-        flex-direction: column !important;
-        gap: 0.75rem !important;
-        width: 100% !important;
-    }
-
-    .expire-field {
-        width: 100% !important;
-        min-width: 0 !important;
-    }
-
-    .expire-field input {
-        width: 100% !important;
-        font-size: 16px !important;
-    }
-
-    .expire-field label {
-        font-size: 0.85rem !important;
-    }
-}
-
-
-/* Гарантированное отображение блока автоудаления на мобильных */
-@media (max-width: 768px) {
-    .file-stats {
+    .expire-info {
         display: block !important;
+        width: 100% !important;
+        margin: 0.75rem 0 !important;
+        padding: 0.75rem !important;
+        background: var(--light) !important;
+        border-radius: var(--border-radius-sm) !important;
     }
-    .stat-row {
+
+    .expire-info .stat-row {
         display: flex !important;
         justify-content: space-between !important;
+        align-items: center !important;
+        width: 100% !important;
+        padding: 0.5rem 0 !important;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .expire-info .stat-row:last-child {
+        border-bottom: none;
+    }
+
+    .expire-info .stat-label {
+        flex-shrink: 0 !important;
+        font-size: 0.85rem !important;
+        font-weight: 500 !important;
+        color: var(--gray) !important;
+    }
+
+    .expire-info .stat-value {
+        text-align: right !important;
+        font-size: 0.85rem !important;
+        font-weight: 500 !important;
+        color: var(--dark) !important;
+        word-break: break-word !important;
+        flex: 1 !important;
+        margin-left: 0.5rem !important;
+    }
+}
+
+/* Для тёмной темы */
+@media (prefers-color-scheme: dark) {
+    .expire-info {
+        background: #363636;
+    }
+
+    .expire-info .stat-value {
+        color: #e9ecef !important;
     }
 }

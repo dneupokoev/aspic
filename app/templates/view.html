@@ -109,9 +109,9 @@
                 </div>
             </div>
 
-            <!-- ИНФОРМАЦИЯ ОБ АВТОМАТИЧЕСКОМ УДАЛЕНИИ - ТОЛЬКО ДОБАВЛЕННЫЙ БЛОК -->
+            <!-- ИНФОРМАЦИЯ ОБ АВТОМАТИЧЕСКОМ УДАЛЕНИИ - добавлен класс expire-info -->
             {% if file.expire_date or (file.ttl_hours and file.ttl_hours > 0) %}
-            <div class="file-stats">
+            <div class="file-stats expire-info">
                 <div class="stat-row">
                     <span class="stat-label">⏰ Автоудаление:</span>
                     <span class="stat-value">
