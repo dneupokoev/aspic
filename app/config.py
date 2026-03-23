@@ -1,9 +1,11 @@
+# app/config.py
+
 import os
 import ipaddress
 import shutil
 from pathlib import Path
 from typing import List, Dict, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -35,6 +37,103 @@ TOKEN_LENGTH = int(os.getenv('TOKEN_LENGTH', 8))
 # ============================================
 # Минимальное свободное место на диске (в байтах), по умолчанию 20 ГБ
 MIN_DISK_SPACE = int(os.getenv('MIN_DISK_SPACE', 20 * 1024 * 1024 * 1024))  # 20 GB in bytes
+
+# ============================================
+# НАСТРОЙКИ АВТОМАТИЧЕСКОГО УДАЛЕНИЯ
+# ============================================
+# Количество дней до автоматического удаления по умолчанию (365 дней = 1 год)
+DEFAULT_EXPIRE_DAYS = int(os.getenv('DEFAULT_EXPIRE_DAYS', 365))
+# Количество часов хранения после последнего обращения по умолчанию (8760 часов = 1 год)
+DEFAULT_TTL_HOURS = int(os.getenv('DEFAULT_TTL_HOURS', 8760))
+
+
+def get_default_expire_date() -> str:
+    """
+    Возвращает дату удаления по умолчанию: текущая дата + DEFAULT_EXPIRE_DAYS дней.
+    Формат: YYYY-MM-DD
+    """
+    default_date = datetime.now() + timedelta(days=DEFAULT_EXPIRE_DAYS)
+    return default_date.strftime("%Y-%m-%d")
+
+
+def get_default_ttl_hours() -> int:
+    """
+    Возвращает значение TTL в часах по умолчанию.
+    """
+    return DEFAULT_TTL_HOURS
+
+
+def format_ttl_hours(ttl_hours: int) -> str:
+    """Форматирует TTL в часах для отображения с правильным склонением."""
+    if not ttl_hours or ttl_hours == 0:
+        return "Без ограничения"
+
+    if ttl_hours < 24:
+        # Часы: 1 час, 2-4 часа, 5-20 часов
+        if ttl_hours == 1:
+            return "через 1 час"
+        elif ttl_hours in (2, 3, 4):
+            return f"через {ttl_hours} часа"
+        else:
+            return f"через {ttl_hours} часов"
+
+    if ttl_hours < 168:  # 7 дней
+        days = ttl_hours // 24
+        remaining_hours = ttl_hours % 24
+
+        # Дни: 1 день, 2-4 дня, 5-20 дней
+        if days == 1:
+            days_str = "1 день"
+        elif days in (2, 3, 4):
+            days_str = f"{days} дня"
+        else:
+            days_str = f"{days} дней"
+
+        if remaining_hours == 0:
+            return f"через {days_str}"
+        else:
+            # Часы
+            if remaining_hours == 1:
+                hours_str = "1 час"
+            elif remaining_hours in (2, 3, 4):
+                hours_str = f"{remaining_hours} часа"
+            else:
+                hours_str = f"{remaining_hours} часов"
+            return f"через {days_str} {hours_str}"
+
+    if ttl_hours < 8760:  # 1 год
+        days = ttl_hours // 24
+        # Дни
+        if days == 1:
+            return "через 1 день"
+        elif days in (2, 3, 4):
+            return f"через {days} дня"
+        else:
+            return f"через {days} дней"
+
+    # Годы
+    years = ttl_hours // 8760
+    remaining_days = (ttl_hours % 8760) // 24
+
+    if years == 1:
+        years_str = "1 год"
+    elif years in (2, 3, 4):
+        years_str = f"{years} года"
+    else:
+        years_str = f"{years} лет"
+
+    if remaining_days == 0:
+        return f"через {years_str}"
+    else:
+        # Дни
+        if remaining_days == 1:
+            days_str = "1 день"
+        elif remaining_days in (2, 3, 4):
+            days_str = f"{remaining_days} дня"
+        else:
+            days_str = f"{remaining_days} дней"
+        return f"через {years_str} {days_str}"
+
 
 # ============================================
 # НАСТРОЙКИ ДЛЯ ВЕБХУКОВ

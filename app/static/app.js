@@ -130,7 +130,7 @@ function resetToUpload() {
     if (document.getElementById('webhookUrl')) document.getElementById('webhookUrl').value = '';
     if (document.getElementById('deletePassword')) document.getElementById('deletePassword').value = '';
     if (document.getElementById('expireDate')) document.getElementById('expireDate').value = '';
-    if (document.getElementById('ttlMinutes')) document.getElementById('ttlMinutes').value = '';
+    if (document.getElementById('ttlHours')) document.getElementById('ttlHours').value = '';
 
     // Скрываем все информационные попапы
     hideAllInfo();
@@ -241,13 +241,10 @@ function dataURLtoFile(dataurl, filename) {
 
 // Глобальный обработчик вставки
 async function handlePaste(event) {
-    // Разрешаем вставку ТОЛЬКО на главной странице (в состоянии UPLOAD)
     if (currentState !== State.UPLOAD) {
-        // На других страницах не блокируем стандартное поведение
         return;
     }
 
-    // Предотвращаем стандартное поведение только на главной странице
     event.preventDefault();
 
     const clipboardItems = event.clipboardData.items;
@@ -290,9 +287,7 @@ async function handlePaste(event) {
     alert('Буфер обмена не содержит изображения или текста для вставки.');
 }
 
-// Функция для активации вставки по клику на кнопку
 async function activatePaste() {
-    // Проверяем, что мы на главной странице
     if (currentState !== State.UPLOAD) {
         return;
     }
@@ -309,7 +304,6 @@ async function activatePaste() {
         let fileFromClipboard = null;
         let textFromClipboard = null;
 
-        // Проверяем, есть ли изображение в буфере
         for (const type of item.types) {
             if (type.startsWith('image/')) {
                 const blob = await item.getType(type);
@@ -320,7 +314,6 @@ async function activatePaste() {
             }
         }
 
-        // Если нет изображения, проверяем текст
         if (!fileFromClipboard && item.types.includes('text/plain')) {
             const blob = await item.getType('text/plain');
             textFromClipboard = await blob.text();
@@ -354,14 +347,12 @@ async function activatePaste() {
 // ============================================
 
 function showError(message, isRateLimit = false) {
-    // Используем новый элемент для клиентских ошибок
     const errorDiv = document.getElementById('clientErrorMessage');
     if (!errorDiv) return;
 
     const errorText = document.getElementById('clientErrorText');
     const errorIcon = document.getElementById('clientErrorIcon');
 
-    // Очищаем сообщение от эмодзи для отображения
     let cleanMessage = message.replace(/[✅❌🔒⏳⚠️]/g, '').trim();
 
     if (isRateLimit) {
@@ -376,11 +367,8 @@ function showError(message, isRateLimit = false) {
 
     errorText.textContent = cleanMessage;
     errorDiv.style.display = 'flex';
-
-    // Прокрутка к ошибке
     errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-    // Автоматически скрываем через 10 секунд
     setTimeout(() => {
         if (errorDiv.style.display === 'flex') {
             errorDiv.style.display = 'none';
@@ -389,15 +377,13 @@ function showError(message, isRateLimit = false) {
 }
 
 // ============================================
-// ФУНКЦИИ ВАЛИДАЦИИ URL
+// ФУНКЦИИ ВАЛИДАЦИИ
 // ============================================
 
 function isValidUrl(string) {
-    if (!string || string.trim() === '') return true; // Пустое поле - валидно
-
+    if (!string || string.trim() === '') return true;
     try {
         const url = new URL(string);
-        // Проверяем, что протокол http или https
         return url.protocol === 'http:' || url.protocol === 'https:';
     } catch (_) {
         return false;
@@ -407,7 +393,6 @@ function isValidUrl(string) {
 function validateWebhookUrl() {
     const webhookInput = document.getElementById('webhookUrl');
     const confirmBtn = document.getElementById('confirmBtn');
-
     if (!webhookInput || !confirmBtn) return;
 
     const url = webhookInput.value.trim();
@@ -418,8 +403,6 @@ function validateWebhookUrl() {
     } else {
         webhookInput.classList.remove('error-field');
     }
-
-    // Обновляем состояние кнопки
     validateForm();
 }
 
@@ -442,12 +425,10 @@ function validateForm() {
     const webhookInput = document.getElementById('webhookUrl');
     const passwordInput = document.getElementById('deletePassword');
     const confirmBtn = document.getElementById('confirmBtn');
-
     if (!confirmBtn) return;
 
     let isValid = true;
 
-    // Проверяем вебхук
     if (webhookInput) {
         const webhookUrl = webhookInput.value.trim();
         if (webhookUrl.length > 0 && !isValidUrl(webhookUrl)) {
@@ -455,7 +436,6 @@ function validateForm() {
         }
     }
 
-    // Проверяем пароль
     if (passwordInput) {
         const password = passwordInput.value.trim();
         if (password.length > 0 && (password.length < 4 || password.length > 16)) {
@@ -463,14 +443,8 @@ function validateForm() {
         }
     }
 
-    // Управляем кнопкой
     confirmBtn.disabled = !isValid;
-
-    if (confirmBtn.disabled) {
-        confirmBtn.title = 'Исправьте ошибки в форме';
-    } else {
-        confirmBtn.title = '';
-    }
+    confirmBtn.title = isValid ? '' : 'Исправьте ошибки в форме';
 }
 
 // ============================================
@@ -484,8 +458,6 @@ async function uploadForPreview(file, textContent = null) {
     const formData = new FormData();
     formData.append('file', file);
 
-    // НЕ переключаем состояние сразу, ждем ответ от сервера
-    // Просто показываем индикатор загрузки в текущем состоянии
     elements.previewContainer.innerHTML = '<div class="preview-placeholder">⏳ Загрузка предпросмотра...</div>';
 
     try {
@@ -511,13 +483,9 @@ async function uploadForPreview(file, textContent = null) {
                 }
             }
 
-            // Показываем ошибку и возвращаемся в состояние загрузки
             showError(errorMsg, isRateLimit);
-
-            // Возвращаем исходное состояние загрузки
             setState(State.UPLOAD);
             elements.previewContainer.innerHTML = '<div class="preview-placeholder">Выберите файл для предпросмотра</div>';
-
             return;
         }
 
@@ -526,7 +494,6 @@ async function uploadForPreview(file, textContent = null) {
         currentPreviewId = data.preview_id;
         currentFileData = data;
 
-        // Только после успешного ответа переключаемся в PREVIEW
         setState(State.PREVIEW);
 
         elements.previewFilename.textContent = data.filename;
@@ -534,15 +501,45 @@ async function uploadForPreview(file, textContent = null) {
         elements.previewType.textContent = getFileTypeName(data.mime_type);
         elements.previewIcon.textContent = data.icon || '📄';
 
-        // Показываем поля для webhook и пароля при предпросмотре
+        // ========== ПОКАЗЫВАЕМ ПОЛЯ ==========
         const webhookField = document.getElementById('webhookField');
         const passwordField = document.getElementById('passwordField');
         const expireField = document.getElementById('expireField');
-        if (webhookField) webhookField.style.display = 'block';
-        if (passwordField) passwordField.style.display = 'block';
-        if (expireField) expireField.style.display = 'block';
 
-        // Добавляем обработчики валидации
+        if (webhookField) {
+            webhookField.style.display = 'block';
+            webhookField.style.visibility = 'visible';
+        }
+        if (passwordField) {
+            passwordField.style.display = 'block';
+            passwordField.style.visibility = 'visible';
+        }
+        if (expireField) {
+            expireField.style.display = 'block';
+            expireField.style.visibility = 'visible';
+        }
+
+        // ========== УСТАНАВЛИВАЕМ ЗНАЧЕНИЯ ПО УМОЛЧАНИЮ ==========
+        const expireDateInput = document.getElementById('expireDate');
+        const ttlHoursInput = document.getElementById('ttlHours');
+
+        if (expireDateInput && !expireDateInput.value) {
+            const defaultValue = expireDateInput.getAttribute('value');
+            if (defaultValue) {
+                expireDateInput.value = defaultValue;
+                console.log('Expire date set to:', defaultValue);
+            }
+        }
+
+        if (ttlHoursInput && !ttlHoursInput.value) {
+            const defaultValue = ttlHoursInput.getAttribute('value');
+            if (defaultValue && defaultValue !== '0') {
+                ttlHoursInput.value = defaultValue;
+                console.log('TTL hours set to:', defaultValue);
+            }
+        }
+        // ========================================================
+
         const webhookInput = document.getElementById('webhookUrl');
         const passwordInput = document.getElementById('deletePassword');
 
@@ -550,21 +547,18 @@ async function uploadForPreview(file, textContent = null) {
             webhookInput.addEventListener('input', validateWebhookUrl);
             webhookInput.addEventListener('blur', validateWebhookUrl);
         }
-
         if (passwordInput) {
             passwordInput.addEventListener('input', validatePassword);
             passwordInput.addEventListener('blur', validatePassword);
         }
 
-        // Если это текст из буфера - показываем textarea на всё поле
         if (textContent !== null && data.mime_type.startsWith('text/')) {
             isTextEditable = true;
             originalTextContent = textContent;
             elements.previewContainer.innerHTML = `
-                <textarea class="text-editor-area" placeholder="Редактируйте текст..." spellcheck="false">${textContent}</textarea>
+                <textarea class="text-editor-area" placeholder="Редактируйте текст..." spellcheck="false">${escapeHtml(textContent)}</textarea>
             `;
         } else {
-            // Обычный предпросмотр
             isTextEditable = false;
             originalTextContent = null;
             let previewHtml = '';
@@ -574,40 +568,38 @@ async function uploadForPreview(file, textContent = null) {
             } else if (data.mime_type === 'application/pdf') {
                 previewHtml = `<iframe src="${data.preview_url}" class="preview-iframe"></iframe>`;
             } else if (data.mime_type.startsWith('video/')) {
-                previewHtml = `
-                    <video controls class="preview-video">
-                        <source src="${data.preview_url}" type="${data.mime_type}">
-                    </video>
-                `;
+                previewHtml = `<video controls class="preview-video"><source src="${data.preview_url}" type="${data.mime_type}"></video>`;
             } else if (data.mime_type.startsWith('audio/')) {
-                previewHtml = `
-                    <audio controls class="preview-audio">
-                        <source src="${data.preview_url}" type="${data.mime_type}">
-                    </audio>
-                `;
+                previewHtml = `<audio controls class="preview-audio"><source src="${data.preview_url}" type="${data.mime_type}"></audio>`;
             } else if (data.mime_type.startsWith('text/')) {
                 previewHtml = `<iframe src="${data.preview_url}" class="preview-iframe"></iframe>`;
             } else {
-                previewHtml = `<div class="preview-unsupported">
-                    <p>Предпросмотр недоступен для этого типа файлов</p>
-                    <p class="file-detail">Тип: ${data.mime_type}</p>
-                </div>`;
+                previewHtml = `<div class="preview-unsupported"><p>Предпросмотр недоступен для этого типа файлов</p><p class="file-detail">Тип: ${data.mime_type}</p></div>`;
             }
 
             elements.previewContainer.innerHTML = previewHtml;
         }
 
-        // Валидируем форму после отображения
         validateForm();
 
     } catch (error) {
         console.error('Preview error:', error);
         showError('❌ Ошибка при загрузке файла: ' + error.message);
-
-        // Возвращаемся в состояние загрузки
         setState(State.UPLOAD);
         elements.previewContainer.innerHTML = '<div class="preview-placeholder">Выберите файл для предпросмотра</div>';
     }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
+        return c;
+    });
 }
 
 async function confirmUpload() {
@@ -617,18 +609,16 @@ async function confirmUpload() {
         return;
     }
 
-    // Получаем значения из полей ввода
     const webhookInput = document.getElementById('webhookUrl');
     const passwordInput = document.getElementById('deletePassword');
     const expireDateInput = document.getElementById('expireDate');
-    const ttlMinutesInput = document.getElementById('ttlMinutes');
+    const ttlHoursInput = document.getElementById('ttlHours');
 
     const webhookUrlValue = webhookInput?.value.trim() || '';
     const deletePasswordValue = passwordInput?.value.trim() || '';
     const expireDateValue = expireDateInput?.value.trim() || '';
-    const ttlMinutesValue = ttlMinutesInput?.value.trim() || 0;
+    const ttlHoursValue = ttlHoursInput?.value.trim() || 0;
 
-    // Финальная валидация перед отправкой
     if (webhookUrlValue && !isValidUrl(webhookUrlValue)) {
         showError('❌ Введите корректный URL (начинается с http:// или https://)');
         if (webhookInput) webhookInput.classList.add('error-field');
@@ -652,15 +642,13 @@ async function confirmUpload() {
             webhook_url: webhookUrlValue,
             delete_password: deletePasswordValue,
             expire_date: expireDateValue,
-            ttl_minutes: parseInt(ttlMinutesValue) || 0
+            ttl_hours: parseInt(ttlHoursValue) || 0
         };
 
-        // Если текст редактируемый - отправляем изменённое содержимое
         if (isTextEditable && originalTextContent !== null) {
             const textarea = elements.previewContainer.querySelector('.text-editor-area');
             if (textarea) {
-                const editedText = textarea.value;
-                requestBody.text_content = editedText;
+                requestBody.text_content = textarea.value;
             }
         }
 
@@ -686,7 +674,6 @@ async function confirmUpload() {
                     errorMsg = '❌ Ошибка при сохранении файла';
                 }
             }
-
             throw { message: errorMsg, isRateLimit };
         }
 
@@ -699,19 +686,14 @@ async function confirmUpload() {
 
         elements.resultLink.value = fullUrl;
 
-        // Сохраняем информацию о наличии вебхука
         const hasWebhook = data.has_webhook || false;
 
-        // Обновляем ссылку для открытия файла
         if (hasWebhook) {
             elements.viewFileLink.style.display = 'none';
-            const basePath = `/view/${token}`;
-            showWebhookParamsField(fullUrl, basePath, token);
+            showWebhookParamsField(fullUrl, filePath, token);
         } else {
             elements.viewFileLink.style.display = 'inline-flex';
             elements.viewFileLink.href = filePath;
-            elements.viewFileLink.removeAttribute('data-webhook');
-            elements.viewFileLink.removeAttribute('data-base-url');
             hideWebhookParamsField();
         }
 
@@ -751,12 +733,7 @@ function showWebhookParamsField(fullUrl, basePath, token) {
                 Пример: <code>system_id=123&secret_key=456&lang=ru</code>
             </div>
             <div class="webhook-params-input-group">
-                <input type="text"
-                       id="webhookParams"
-                       class="webhook-params-input"
-                       placeholder="system_id=123&secret_key=456"
-                       value=""
-                       oninput="validateWebhookParams()">
+                <input type="text" id="webhookParams" class="webhook-params-input" placeholder="system_id=123&secret_key=456" value="" oninput="validateWebhookParams()">
                 <button class="btn btn-primary" id="applyWebhookParamsBtn" onclick="applyWebhookParams('${token}')" disabled>
                     <span class="btn-icon">🔓</span>
                     <span class="btn-text">Открыть с параметрами</span>
@@ -813,7 +790,6 @@ function showWebhookParamsInfo() {
     const info = document.getElementById('webhookParamsInfo');
     if (info) {
         info.classList.remove('hidden');
-
         setTimeout(() => {
             document.addEventListener('click', function closeInfo(e) {
                 if (!info.contains(e.target) && !e.target.classList.contains('info-btn')) {
@@ -835,12 +811,10 @@ function hideWebhookParamsInfo() {
 function validateWebhookParams() {
     const paramsInput = document.getElementById('webhookParams');
     const applyBtn = document.getElementById('applyWebhookParamsBtn');
-
     if (!paramsInput || !applyBtn) return;
 
     const params = paramsInput.value.trim();
     const isValid = params.length > 0 && params.includes('=');
-
     applyBtn.disabled = !isValid;
 
     if (params.length > 0 && !params.includes('=')) {
@@ -852,11 +826,9 @@ function validateWebhookParams() {
 
 function applyWebhookParams(token) {
     const paramsInput = document.getElementById('webhookParams');
-
     if (!paramsInput || !token) return;
 
     const params = paramsInput.value.trim();
-
     if (!params || !params.includes('=')) {
         showError('❌ Введите корректные параметры в формате key=value');
         return;
@@ -864,13 +836,8 @@ function applyWebhookParams(token) {
 
     let fullPath = `/view/${token}`;
     if (params) {
-        if (params.startsWith('?')) {
-            fullPath = `/view/${token}${params}`;
-        } else {
-            fullPath = `/view/${token}?${params}`;
-        }
+        fullPath = params.startsWith('?') ? `/view/${token}${params}` : `/view/${token}?${params}`;
     }
-
     window.open(fullPath, '_blank');
 }
 
@@ -883,7 +850,6 @@ function showInfo(type) {
     const info = document.getElementById(type + 'Info');
     if (info) {
         info.classList.remove('hidden');
-
         setTimeout(() => {
             document.addEventListener('click', function closeInfo(e) {
                 if (!info.contains(e.target) && !e.target.classList.contains('info-btn')) {
@@ -904,12 +870,9 @@ function hideInfo(type) {
 
 function hideAllInfo() {
     const infos = document.querySelectorAll('.info-popup');
-    infos.forEach(info => {
-        info.classList.add('hidden');
-    });
+    infos.forEach(info => info.classList.add('hidden'));
 }
 
-// Закрытие по Escape
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         hideAllInfo();
@@ -950,7 +913,6 @@ elements.dropZone.addEventListener('drop', (e) => {
     e.preventDefault();
     e.stopPropagation();
     elements.dropZone.classList.remove('dragover');
-
     const file = e.dataTransfer.files[0];
     if (file) uploadForPreview(file);
     hideErrorMessage();
@@ -1006,13 +968,9 @@ window.addEventListener('beforeunload', (e) => {
 document.addEventListener('DOMContentLoaded', function() {
     const authorInputs = document.querySelectorAll('input[name="author"]');
     const savedAuthor = localStorage.getItem('aspic_author');
-
     if (savedAuthor) {
-        authorInputs.forEach(input => {
-            input.value = savedAuthor;
-        });
+        authorInputs.forEach(input => input.value = savedAuthor);
     }
-
     authorInputs.forEach(input => {
         input.addEventListener('change', function() {
             if (this.value && this.value.trim()) {

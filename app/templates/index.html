@@ -188,32 +188,33 @@
             </div>
 
             <!-- Настройки автоматического удаления -->
-            <div class="preview-options compact" id="expireField" style="display: none;">
+            <div class="preview-options compact" id="expireField">
                 <div class="compact-field">
                     <div class="field-header">
                         <span class="label-icon">⏰</span>
-                        <span class="field-label">Удалить после</span>
+                        <span class="field-label">Автоматическое удаление</span>
                         <button type="button" class="info-btn" onclick="showInfo('expire')" title="Что это?">i</button>
                     </div>
-                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                        <div style="flex: 1;">
-                            <label style="font-size: 0.8rem; color: var(--gray);">Конкретная дата</label>
+                    <div class="expire-fields-row">
+                        <div class="expire-field">
+                            <label>Конкретная дата</label>
                             <input type="date"
                                    id="expireDate"
                                    name="expire_date"
                                    class="compact-input"
-                                   placeholder="ГГГГ-ММ-ДД">
+                                   value="{{ default_expire_date }}">
                         </div>
-                        <div style="flex: 1;">
-                            <label style="font-size: 0.8rem; color: var(--gray);">Или минут после последнего просмотра</label>
+                        <div class="expire-field">
+                            <label>Часов после последнего обращения</label>
                             <input type="number"
-                                   id="ttlMinutes"
-                                   name="ttl_minutes"
+                                   id="ttlHours"
+                                   name="ttl_hours"
                                    class="compact-input"
                                    placeholder="0 - без ограничения"
+                                   value="{{ default_ttl_hours }}"
                                    min="0"
-                                   max="525600"
-                                   step="60">
+                                   max="87600"
+                                   step="24">
                         </div>
                     </div>
                     <div id="expireInfo" class="info-popup hidden">
@@ -222,11 +223,14 @@
                             <p>Вы можете настроить автоматическое удаление файла одним из способов:</p>
                             <ul>
                                 <li><strong>Конкретная дата</strong> — файл будет удалён в указанный день в 00:00</li>
-                                <li><strong>Минут после последнего обращения</strong> — файл будет удалён через указанное время после последнего просмотра или скачивания</li>
+                                <li><strong>Часов после последнего обращения</strong> — файл будет удалён через указанное время после последнего просмотра или скачивания</li>
                             </ul>
                             <p>Если оба поля заполнены — файл будет удалён по тому условию, которое наступит раньше.</p>
                             <div class="info-note">
-                                <strong>📌 Пример:</strong> Укажите "30 минут" — файл будет удалён через 30 минут после того, как его в последний раз открыли или скачали.
+                                <strong>📌 Пример:</strong> Укажите "24" — файл будет удалён через 24 часа после того, как его в последний раз открыли или скачали.
+                            </div>
+                            <div class="info-note">
+                                <strong>📌 Значения по умолчанию:</strong> дата удаления = {{ default_expire_date }}, TTL = {{ format_ttl_hours(default_ttl_hours) }}
                             </div>
                             <span class="info-close" onclick="hideInfo('expire')">✕</span>
                         </div>

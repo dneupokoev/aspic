@@ -109,31 +109,31 @@
                 </div>
             </div>
 
-            <!-- Информация об автоматическом удалении -->
-            {% if file.expire_date or file.ttl_minutes %}
+            <!-- ИНФОРМАЦИЯ ОБ АВТОМАТИЧЕСКОМ УДАЛЕНИИ - ТОЛЬКО ДОБАВЛЕННЫЙ БЛОК -->
+            {% if file.expire_date or (file.ttl_hours and file.ttl_hours > 0) %}
             <div class="file-stats">
                 <div class="stat-row">
-                    <span class="stat-label">Автоудаление:</span>
+                    <span class="stat-label">⏰ Автоудаление:</span>
                     <span class="stat-value">
-                        {% if file.expire_date and file.ttl_minutes %}
-                            По первому из условий
+                        {% if file.expire_date and file.ttl_hours and file.ttl_hours > 0 %}
+                            По первому сработавшему условию
                         {% elif file.expire_date %}
                             {{ format_datetime_for_display(file.expire_date) }}
-                        {% elif file.ttl_minutes %}
-                            {{ format_ttl(file.ttl_minutes) }} после последнего обращения
+                        {% elif file.ttl_hours and file.ttl_hours > 0 %}
+                            {{ format_ttl(file.ttl_hours) }} после последнего обращения
                         {% endif %}
                     </span>
                 </div>
                 {% if file.expire_date %}
                 <div class="stat-row">
-                    <span class="stat-label">Удалить до:</span>
+                    <span class="stat-label">Удалить после:</span>
                     <span class="stat-value">{{ format_datetime_for_display(file.expire_date) }}</span>
                 </div>
                 {% endif %}
-                {% if file.ttl_minutes %}
+                {% if file.ttl_hours and file.ttl_hours > 0 %}
                 <div class="stat-row">
                     <span class="stat-label">TTL:</span>
-                    <span class="stat-value">{{ format_ttl(file.ttl_minutes) }} после последнего просмотра/скачивания</span>
+                    <span class="stat-value">{{ format_ttl(file.ttl_hours) }} после последнего просмотра/скачивания</span>
                 </div>
                 {% endif %}
             </div>
@@ -364,7 +364,6 @@
         const errorText = document.getElementById('errorText');
         const errorIcon = document.getElementById('errorIcon');
 
-        // Устанавливаем иконку в зависимости от сообщения
         if (message.includes('✅')) {
             errorIcon.textContent = '✅';
         } else if (message.includes('❌') || message.includes('Неправильный')) {
@@ -379,24 +378,19 @@
 
         errorText.textContent = message.replace(/[✅❌🔒⏳⚠️]/g, '').trim();
         errorDiv.style.display = 'flex';
-
-        // Прокрутка к ошибке
         errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-        // Подсветка поля с ошибкой
         if (fieldId) {
             const field = document.getElementById(fieldId);
             if (field) {
                 field.classList.add('error-field');
                 field.focus();
-
                 setTimeout(() => {
                     field.classList.remove('error-field');
                 }, 3000);
             }
         }
 
-        // Автоматически скрываем ошибку через 10 секунд
         setTimeout(() => {
             if (errorDiv.style.display === 'flex') {
                 errorDiv.style.display = 'none';
@@ -413,7 +407,6 @@
         if (!submitBtn) return;
 
         const originalText = submitBtn.innerHTML;
-
         isSubmitting = true;
         submitBtn.disabled = true;
 
@@ -433,13 +426,11 @@
         }, 1000);
     }
 
-    // Счетчики символов
     function updateCounter(textarea, counterId, maxLength) {
         const counter = document.getElementById(counterId);
         if (counter) {
             const currentLength = textarea.value.length;
             counter.textContent = `${currentLength} / ${maxLength}`;
-
             if (currentLength >= maxLength) {
                 counter.style.color = 'var(--danger)';
             } else if (currentLength > maxLength * 0.8) {
@@ -452,10 +443,7 @@
 
     async function handleCommentSubmit(event) {
         event.preventDefault();
-
-        if (isSubmitting) {
-            return false;
-        }
+        if (isSubmitting) return false;
 
         const form = event.target;
         const formData = new FormData(form);
@@ -464,9 +452,7 @@
             const response = await fetch(form.action, {
                 method: 'POST',
                 body: formData,
-                headers: {
-                    'Accept': 'application/json'
-                }
+                headers: { 'Accept': 'application/json' }
             });
 
             const data = await response.json();
@@ -485,13 +471,10 @@
                 }
 
                 showError(errorMessage);
-                if (cooldownSeconds > 0) {
-                    startCooldown(cooldownSeconds, 'commentSubmitBtn');
-                }
+                if (cooldownSeconds > 0) startCooldown(cooldownSeconds, 'commentSubmitBtn');
                 return false;
             }
 
-            // Успешное добавление комментария - перезагружаем страницу
             window.location.reload();
 
         } catch (error) {
@@ -499,20 +482,14 @@
             showError('⚠️ Ошибка соединения с сервером.');
             startCooldown(10, 'commentSubmitBtn');
         }
-
         return false;
     }
 
     async function handleDeleteSubmit(event) {
         event.preventDefault();
+        if (isSubmitting) return false;
 
-        if (isSubmitting) {
-            return false;
-        }
-
-        if (!confirm('Удалить файл?')) {
-            return false;
-        }
+        if (!confirm('Удалить файл?')) return false;
 
         const form = event.target;
         const formData = new FormData(form);
@@ -521,9 +498,7 @@
             const response = await fetch(form.action, {
                 method: 'POST',
                 body: formData,
-                headers: {
-                    'Accept': 'application/json'
-                }
+                headers: { 'Accept': 'application/json' }
             });
 
             const data = await response.json();
@@ -560,13 +535,10 @@
                 }
 
                 showError(errorMessage, errorField);
-                if (cooldownSeconds > 0) {
-                    startCooldown(cooldownSeconds, 'deleteSubmitBtn');
-                }
+                if (cooldownSeconds > 0) startCooldown(cooldownSeconds, 'deleteSubmitBtn');
                 return false;
             }
 
-            // Успешное удаление
             showError('✅ Файл успешно удален!', null);
             setTimeout(() => {
                 if (data.redirect) {
@@ -581,19 +553,15 @@
             showError('⚠️ Ошибка соединения с сервером.');
             startCooldown(10, 'deleteSubmitBtn');
         }
-
         return false;
     }
 
-    // Сохраняем автора и добавляем счетчики
     document.addEventListener('DOMContentLoaded', function() {
         const authorInputs = document.querySelectorAll('input[name="author"]');
         const savedAuthor = localStorage.getItem('aspic_author');
 
         if (savedAuthor) {
-            authorInputs.forEach(input => {
-                input.value = savedAuthor;
-            });
+            authorInputs.forEach(input => input.value = savedAuthor);
         }
 
         authorInputs.forEach(input => {
@@ -604,7 +572,6 @@
             });
         });
 
-        // Счетчик для комментария
         const commentTextarea = document.getElementById('comment_text');
         if (commentTextarea) {
             const maxLength = parseInt(commentTextarea.getAttribute('maxlength') || '1000');
@@ -614,7 +581,6 @@
             updateCounter(commentTextarea, 'commentCounter', maxLength);
         }
 
-        // Счетчик для причины удаления
         const deleteReasonTextarea = document.getElementById('delete_reason');
         if (deleteReasonTextarea) {
             const maxLength = parseInt(deleteReasonTextarea.getAttribute('maxlength') || '300');

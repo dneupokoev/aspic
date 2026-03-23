@@ -60,7 +60,6 @@ body {
    ШАПКА
    ============================================ */
 
-/* Базовые стили для всех шапок */
 .app-header {
     background: linear-gradient(135deg, var(--primary) 0%, #4895ef 100%);
     color: white;
@@ -68,9 +67,7 @@ body {
     position: relative;
 }
 
-/* ============================================
-   ШАПКА ДЛЯ ГЛАВНОЙ СТРАНИЦЫ (НЕ КОМПАКТНАЯ)
-   ============================================ */
+/* ШАПКА ДЛЯ ГЛАВНОЙ СТРАНИЦЫ (НЕ КОМПАКТНАЯ) */
 .app-header:not(.compact) {
     padding: 1.5rem 1rem;
     text-align: center;
@@ -101,9 +98,7 @@ body {
     left: 1rem;
 }
 
-/* ============================================
-   ШАПКА ДЛЯ СТРАНИЦЫ ПРОСМОТРА (КОМПАКТНАЯ)
-   ============================================ */
+/* ШАПКА ДЛЯ СТРАНИЦЫ ПРОСМОТРА (КОМПАКТНАЯ) */
 .app-header.compact {
     padding: 0.75rem 1rem;
 }
@@ -340,10 +335,7 @@ body {
 .btn-with-text { min-width: 140px; }
 .btn-icon { font-size: 1.2rem; }
 
-/* ============================================
-   ЦВЕТОВЫЕ ВАРИАНТЫ КНОПОК
-   ============================================ */
-
+/* ЦВЕТОВЫЕ ВАРИАНТЫ КНОПОК */
 .btn-small {
     padding: 0.4rem 1rem;
     font-size: 0.9rem;
@@ -1032,15 +1024,18 @@ body {
 
 .preview-options.compact {
     background: transparent;
-    padding: 0.25rem 0;
-    margin: 0.25rem 0;
+    padding: 0.5rem 0;
+    margin: 0.5rem 0;
     border: none;
+    display: block;
+    width: 100%;
 }
 
 .compact-field {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    width: 100%;
 }
 
 .field-header {
@@ -1089,6 +1084,29 @@ body {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.1);
+}
+
+/* ============================================
+   ПОЛЯ ДЛЯ НАСТРОЙКИ АВТОУДАЛЕНИЯ
+   ============================================ */
+
+.expire-fields-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.expire-field {
+    flex: 1;
+    min-width: 0;
+}
+
+.expire-field label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--gray);
+    margin-bottom: 0.25rem;
 }
 
 /* ============================================
@@ -1189,6 +1207,7 @@ body {
     display: flex;
     gap: 0.5rem;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .webhook-params-input {
@@ -1283,7 +1302,6 @@ body {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* Дополнительные стили для информационных попапов */
 .info-section {
     margin: 1rem 0;
     padding: 0.5rem 0;
@@ -1403,7 +1421,6 @@ body {
     box-shadow: none;
 }
 
-/* Подсказка при наведении на disabled кнопку */
 .btn-primary:disabled {
     position: relative;
 }
@@ -1453,6 +1470,287 @@ body {
     .btn-download { flex: 0 1 auto; min-width: 160px; }
     .action-row-mobile { display: flex; gap: 0.5rem; align-items: center; }
     .btn-link-mobile { min-width: 100px; }
+}
+
+/* ============================================
+   МОБИЛЬНАЯ АДАПТАЦИЯ
+   ============================================ */
+
+@media (max-width: 768px) {
+    .app-container, .container {
+        min-height: auto;
+        border-radius: var(--border-radius-sm);
+    }
+
+    .app-header:not(.compact) {
+        padding: 1.2rem 1rem;
+        text-align: center;
+    }
+
+    .app-header:not(.compact) .app-title {
+        font-size: 1.8rem;
+        margin-bottom: 0.3rem;
+    }
+
+    .app-header:not(.compact) .app-subtitle {
+        font-size: 0.9rem;
+        padding: 0 0.5rem;
+        line-height: 1.4;
+    }
+
+    .app-header.compact {
+        padding: 0.75rem 1rem;
+    }
+
+    .app-header.compact .header-content {
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        text-align: center;
+    }
+
+    .app-header.compact .header-content .app-title {
+        font-size: 1.4rem;
+        white-space: normal;
+        text-align: center;
+    }
+
+    .app-header.compact .header-content .app-subtitle {
+        width: 100%;
+        text-align: center;
+        font-size: 0.85rem;
+        padding: 0 0.5rem;
+    }
+
+    .app-header.compact .header-content .app-nav {
+        width: 100%;
+    }
+
+    .app-header.compact .header-content .app-nav .btn-small {
+        width: 100%;
+        justify-content: center;
+        padding: 0.4rem 0.8rem;
+        font-size: 0.9rem;
+    }
+
+    .app-main { padding: 1.5rem; }
+
+    .upload-area {
+        padding: 2rem 1rem;
+        min-height: 250px;
+    }
+
+    .upload-icon { font-size: 3rem; }
+    .upload-text { font-size: 1rem; }
+
+    .preview-actions,
+    .result-actions,
+    .download-section,
+    .action-row,
+    .action-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .preview-actions .btn,
+    .result-actions .btn,
+    .download-section .btn,
+    .action-btn,
+    .webhook-params-input-group .btn,
+    .btn-download,
+    .btn-link-mobile {
+        width: 100%;
+    }
+
+    .webhook-params-input-group {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .webhook-params-input {
+        width: 100%;
+    }
+
+    .preview-container {
+        min-height: 200px;
+        max-height: 400px;
+    }
+
+    .preview-iframe { height: 400px; }
+    .result-title { font-size: 1.5rem; }
+
+    .link-box {
+        flex-direction: column;
+        border: none;
+        gap: 0.5rem;
+        width: 100%;
+    }
+
+    .link-input {
+        border: 2px solid var(--border);
+        border-radius: var(--border-radius-sm);
+        text-align: center;
+        width: 100%;
+        height: 48px;
+    }
+
+    .btn-copy {
+        width: 100%;
+        border-radius: var(--border-radius-sm);
+    }
+
+    .file-meta { flex-direction: column; gap: 0.5rem; }
+
+    .delete-form,
+    .comment-form-wrapper {
+        padding: 1rem;
+    }
+
+    .delete-form .btn,
+    .comment-form-wrapper .btn,
+    .comment-form button {
+        width: 100%;
+    }
+
+    .file-badge { flex-wrap: wrap; }
+    .file-icon { font-size: 2rem; }
+    .filename { font-size: 1rem; }
+    .preview-iframe { height: 300px; }
+
+    .action-row { gap: 0.5rem; }
+    .action-btn { min-width: auto; }
+    .info-grid { grid-template-columns: repeat(2, 1fr); }
+
+    .file-header-centered {
+        flex-direction: column;
+        gap: 0.5rem;
+        margin: 1.5rem 0;
+    }
+
+    .file-title {
+        font-size: 1.2rem;
+        text-align: center;
+    }
+
+    .form-submit { justify-content: center; }
+    .form-submit .btn { width: 100%; }
+
+    .error-message {
+        padding: 0.75rem;
+        font-size: 0.9rem;
+    }
+
+    .text-editor-area {
+        min-height: 250px;
+        font-size: 13px;
+        padding: 12px;
+    }
+
+    .preview-options { padding: 0.75rem; }
+    .preview-options label { font-size: 0.9rem; }
+
+    .compact-field { gap: 0.15rem; }
+    .field-header { font-size: 0.8rem; }
+    .compact-input {
+        padding: 0.4rem 0.6rem;
+        font-size: 16px;
+    }
+    .info-btn { width: 18px; height: 18px; font-size: 11px; }
+    .info-content { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+
+    /* Поля автоудаления на мобильной версии */
+    .expire-fields-row {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .expire-field {
+        width: 100%;
+    }
+
+    .expire-field input {
+        width: 100%;
+        box-sizing: border-box;
+        font-size: 16px;
+    }
+
+    .captcha-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+
+    .captcha-question {
+        height: auto;
+    }
+
+    .captcha-question label {
+        white-space: normal;
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .password-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+        padding: 0.75rem;
+    }
+
+    .password-label { padding-left: 0; }
+
+    .webhook-params-field {
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+
+    .webhook-params-example {
+        font-size: 0.8rem;
+        padding: 0.5rem;
+    }
+
+    .webhook-params-example code { font-size: 0.75rem; }
+
+    .action-row-mobile {
+        width: 100%;
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-link-mobile { flex: 1; min-width: 0; }
+    .btn-icon-only { width: 48px; flex-shrink: 0; }
+}
+
+/* ============================================
+   ОЧЕНЬ МАЛЕНЬКИЕ ЭКРАНЫ
+   ============================================ */
+
+@media (max-width: 480px) {
+    .btn-link-mobile {
+        font-size: 0.9rem;
+        padding: 0.6rem 0.5rem;
+    }
+
+    .btn-icon-only {
+        width: 42px;
+        height: 42px;
+    }
+
+    .app-header:not(.compact) .app-title {
+        font-size: 1.6rem;
+    }
+
+    .app-header:not(.compact) .app-subtitle {
+        font-size: 0.85rem;
+    }
+
+    .app-header.compact .header-content .app-title {
+        font-size: 1.3rem;
+    }
+
+    .app-header.compact .header-content .app-subtitle {
+        font-size: 0.8rem;
+    }
 }
 
 /* ============================================
@@ -1613,304 +1911,62 @@ body {
 }
 
 /* ============================================
-   МОБИЛЬНАЯ АДАПТАЦИЯ
+   СТИЛИ ДЛЯ АВТОУДАЛЕНИЯ
    ============================================ */
 
+/* Убеждаемся, что поля видны на всех устройствах */
+.preview-options.compact {
+    display: block !important;
+}
+
+/* Форсированное отображение полей автоудаления */
+#expireField {
+    display: block !important;
+    visibility: visible !important;
+}
+
+#expireField .compact-field {
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+#expireDate, #ttlHours {
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* На мобильных устройствах поля становятся вертикальными */
 @media (max-width: 768px) {
-    .app-container, .container {
-        min-height: auto;
-        border-radius: var(--border-radius-sm);
+    .expire-fields-row {
+        flex-direction: column !important;
+        gap: 0.75rem !important;
+        width: 100% !important;
     }
 
-    /* Главная страница - центрируем всё */
-    .app-header:not(.compact) {
-        padding: 1.2rem 1rem;
-        text-align: center;
+    .expire-field {
+        width: 100% !important;
+        min-width: 0 !important;
     }
 
-    .app-header:not(.compact) .app-title {
-        font-size: 1.8rem;
-        margin-bottom: 0.3rem;
+    .expire-field input {
+        width: 100% !important;
+        font-size: 16px !important;
     }
 
-    .app-header:not(.compact) .app-subtitle {
-        font-size: 0.9rem;
-        padding: 0 0.5rem;
-        line-height: 1.4;
-    }
-
-    /* Страница просмотра - центрируем */
-    .app-header.compact {
-        padding: 0.75rem 1rem;
-    }
-
-    .app-header.compact .header-content {
-        flex-direction: column;
-        align-items: center;
-        gap: 0.5rem;
-        text-align: center;
-    }
-
-    .app-header.compact .header-content .app-title {
-        font-size: 1.4rem;
-        white-space: normal;
-        text-align: center;
-    }
-
-    .app-header.compact .header-content .app-subtitle {
-        width: 100%;
-        text-align: center;
-        font-size: 0.85rem;
-        padding: 0 0.5rem;
-    }
-
-    .app-header.compact .header-content .app-nav {
-        width: 100%;
-    }
-
-    .app-header.compact .header-content .app-nav .btn-small {
-        width: 100%;
-        justify-content: center;
-        padding: 0.4rem 0.8rem;
-        font-size: 0.9rem;
-    }
-
-    .app-main { padding: 1.5rem; }
-
-    .upload-area {
-        padding: 2rem 1rem;
-        min-height: 250px;
-    }
-
-    .upload-icon { font-size: 3rem; }
-    .upload-text { font-size: 1rem; }
-
-    .preview-actions,
-    .result-actions,
-    .download-section,
-    .action-row,
-    .action-buttons,
-    .webhook-params-input-group {
-        flex-direction: column;
-        width: 100%;
-    }
-
-    .preview-actions .btn,
-    .result-actions .btn,
-    .download-section .btn,
-    .action-btn,
-    .webhook-params-input-group .btn,
-    .btn-download,
-    .btn-link-mobile {
-        width: 100%;
-    }
-
-    .preview-container {
-        min-height: 200px;
-        max-height: 400px;
-    }
-
-    .preview-iframe { height: 400px; }
-    .result-title { font-size: 1.5rem; }
-
-    .link-box {
-        flex-direction: column;
-        border: none;
-        gap: 0.5rem;
-        width: 100%;
-    }
-
-    .link-input {
-        border: 2px solid var(--border);
-        border-radius: var(--border-radius-sm);
-        text-align: center;
-        width: 100%;
-        height: 48px;
-    }
-
-    .btn-copy {
-        width: 100%;
-        border-radius: var(--border-radius-sm);
-    }
-
-    .file-meta { flex-direction: column; gap: 0.5rem; }
-
-    .delete-form,
-    .comment-form-wrapper {
-        padding: 1rem;
-    }
-
-    .delete-form .btn,
-    .comment-form-wrapper .btn,
-    .comment-form button {
-        width: 100%;
-    }
-
-    .file-badge { flex-wrap: wrap; }
-    .file-icon { font-size: 2rem; }
-    .filename { font-size: 1rem; }
-    .preview-iframe { height: 300px; }
-
-    .action-row { gap: 0.5rem; }
-    .action-btn { min-width: auto; }
-    .info-grid { grid-template-columns: repeat(2, 1fr); }
-
-    .file-header-centered {
-        flex-direction: column;
-        gap: 0.5rem;
-        margin: 1.5rem 0;
-    }
-
-    .file-title {
-        font-size: 1.2rem;
-        text-align: center;
-    }
-
-    .form-submit { justify-content: center; }
-    .form-submit .btn { width: 100%; }
-
-    .error-message {
-        padding: 0.75rem;
-        font-size: 0.9rem;
-    }
-
-    .text-editor-area {
-        min-height: 250px;
-        font-size: 13px;
-        padding: 12px;
-    }
-
-    .preview-options { padding: 0.75rem; }
-    .preview-options label { font-size: 0.9rem; }
-    .preview-options .author-input { padding: 0.6rem; font-size: 0.9rem; }
-
-    .compact-field { gap: 0.15rem; }
-    .field-header { font-size: 0.8rem; }
-    .compact-input { padding: 0.4rem 0.6rem; font-size: 0.85rem; }
-    .info-btn { width: 18px; height: 18px; font-size: 11px; }
-    .info-content { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
-
-    .captcha-row {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.5rem;
-    }
-
-    .captcha-question {
-        height: auto;
-    }
-
-    .captcha-question label {
-        white-space: normal;
-        width: 100%;
-        justify-content: space-between;
-    }
-
-    .password-row {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.5rem;
-        padding: 0.75rem;
-    }
-
-    .password-label { padding-left: 0; }
-
-    .webhook-params-field {
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-
-    .webhook-params-input { width: 100%; }
-
-    .webhook-params-example {
-        font-size: 0.8rem;
-        padding: 0.5rem;
-    }
-
-    .webhook-params-example code { font-size: 0.75rem; }
-
-    .action-row-mobile {
-        width: 100%;
-        display: flex;
-        gap: 0.5rem;
-    }
-
-    .btn-link-mobile { flex: 1; min-width: 0; }
-    .btn-icon-only { width: 48px; flex-shrink: 0; }
-}
-
-/* ============================================
-   ОЧЕНЬ МАЛЕНЬКИЕ ЭКРАНЫ
-   ============================================ */
-
-@media (max-width: 480px) {
-    .btn-link-mobile {
-        font-size: 0.9rem;
-        padding: 0.6rem 0.5rem;
-    }
-
-    .btn-icon-only {
-        width: 42px;
-        height: 42px;
-    }
-
-    .app-header:not(.compact) .app-title {
-        font-size: 1.6rem;
-    }
-
-    .app-header:not(.compact) .app-subtitle {
-        font-size: 0.85rem;
-    }
-
-    .app-header.compact .header-content .app-title {
-        font-size: 1.3rem;
-    }
-
-    .app-header.compact .header-content .app-subtitle {
-        font-size: 0.8rem;
+    .expire-field label {
+        font-size: 0.85rem !important;
     }
 }
 
 
-/* ============================================
-   ПОЛЯ ДЛЯ НАСТРОЙКИ АВТОУДАЛЕНИЯ
-   ============================================ */
-
-.preview-options.compact input[type="date"] {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: var(--border-radius-sm);
-    font-size: 0.9rem;
-    background: var(--light);
-    transition: var(--transition);
-}
-
-.preview-options.compact input[type="date"]:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.1);
-}
-
-.preview-options.compact input[type="number"] {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: var(--border-radius-sm);
-    font-size: 0.9rem;
-    background: var(--light);
-    transition: var(--transition);
-}
-
-.preview-options.compact input[type="number"]:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.1);
-}
-
-.preview-options.compact label {
-    display: block;
-    font-size: 0.8rem;
-    color: var(--gray);
-    margin-bottom: 0.25rem;
+/* Гарантированное отображение блока автоудаления на мобильных */
+@media (max-width: 768px) {
+    .file-stats {
+        display: block !important;
+    }
+    .stat-row {
+        display: flex !important;
+        justify-content: space-between !important;
+    }
 }

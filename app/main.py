@@ -22,7 +22,6 @@ import aiofiles
 
 # Импортируем хранилище
 from app.storage.factory import get_storage_backend
-
 from app.database import (
     init_db, save_file_metadata, get_file_metadata,
     add_comment, get_comments, mark_file_as_deleted,
@@ -42,7 +41,9 @@ from app.config import (
     STORAGE_BACKEND, ENABLE_WEB_UI,
     # для обхода лимита размера
     UNLIMITED_UPLOAD_SECRET, MAX_UNLIMITED_FILE_SIZE,
-    EXT_TO_MIME, PREVIEW_MIME_MAP
+    EXT_TO_MIME, PREVIEW_MIME_MAP,
+    # для автоудаления
+    get_default_expire_date, get_default_ttl_hours, format_ttl_hours
 )
 
 # Константы для ограничений длины текста
@@ -75,14 +76,13 @@ def can_increment_view(token: str, ip: str) -> bool:
         last_view = view_tracker[key]
         if now - last_view < timedelta(hours=1):
             return False
+        view_tracker[key] = now
 
-    view_tracker[key] = now
+        # Очистка старых записей
+        if random.randint(1, 100) == 1:
+            cleanup_old_views()
 
-    # Очистка старых записей
-    if random.randint(1, 100) == 1:
-        cleanup_old_views()
-
-    return True
+        return True
 
 
 def cleanup_old_views():
@@ -96,9 +96,9 @@ def cleanup_old_views():
         del view_tracker[key]
 
 
-# ============================================
+# =========================================================
 # ПРОВЕРКА ДОСТУПА К БОЛЬШИМ ФАЙЛАМ
-# ============================================
+# =========================================================
 def _generate_upload_token(secret: str, timestamp: float, salt: str) -> str:
     """Генерирует хэш-токен для доступа к большим файлам."""
     data = f"{secret}:{timestamp}:{salt}"
@@ -121,7 +121,6 @@ def _parse_upload_token(cookie_value: str) -> Optional[tuple]:
 def check_unlimited_upload_access(request: Request) -> bool:
     """
     Проверяет, имеет ли пользователь доступ к загрузке больших файлов.
-
     Проверяет:
     1. Параметр ?upload_secret=XXX в запросе
     2. Куку upload_token с валидным хэшем
@@ -172,9 +171,9 @@ def set_unlimited_upload_cookie(response, timestamp: float, salt: str) -> None:
     )
 
 
-# ============================================
+# =========================================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ЗАГЛУШКИ 404
-# ============================================
+# =========================================================
 async def api_only_404_page(request: Request) -> HTMLResponse:
     """Возвращает стилизованную страницу 404 для режима API-only."""
     return templates.TemplateResponse(
@@ -188,9 +187,9 @@ async def api_only_404_page(request: Request) -> HTMLResponse:
     )
 
 
-# ============================================
+# =========================================================
 # ФУНКЦИИ ДЛЯ ЭСКАПИРОВАНИЯ HTML
-# ============================================
+# =========================================================
 def escape_html(text: str) -> str:
     """Экранирует HTML-спецсимволы для защиты от XSS."""
     if text is None:
@@ -198,9 +197,9 @@ def escape_html(text: str) -> str:
     return html.escape(str(text))
 
 
-# ============================================
+# =========================================================
 # ФУНКЦИИ ДЛЯ РАБОТЫ С ДАТАМИ
-# ============================================
+# =========================================================
 def parse_expire_date(expire_date_str: str) -> Optional[str]:
     """Парсит дату из строки формата YYYY-MM-DD и возвращает ISO строку."""
     if not expire_date_str:
@@ -212,14 +211,13 @@ def parse_expire_date(expire_date_str: str) -> Optional[str]:
         return None
 
 
-# ============================================
+# =========================================================
 # LIFESPAN
-# ============================================
+# =========================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     await init_db(DB_PATH)
-
     # Инициализация хранилища файлов
     global file_storage
     storage_config = {
@@ -237,6 +235,7 @@ async def lifespan(app: FastAPI):
     print(f"🔧 Режим DEBUG: {DEBUG}")
     print(f"🌐 Веб-интерфейс: {web_ui_status}")
     print(f"🔗 Webhook timeout: {WEBHOOK_TIMEOUT}s, cache TTL: {WEBHOOK_CACHE_TTL}s")
+    print(f"⏰ Автоудаление по умолчанию: дата = +{get_default_expire_date()}, TTL = {format_ttl_hours(get_default_ttl_hours())}")
 
     yield
 
@@ -244,13 +243,12 @@ async def lifespan(app: FastAPI):
     print("👋 ASPIC остановлен")
 
 
-# ============================================
+# =========================================================
 # ИНИЦИАЛИЗАЦИЯ FASTAPI
-# ============================================
+# =========================================================
 # Настраиваем документацию в зависимости от режима DEBUG
 docs_url = "/docs" if DEBUG else None
 redoc_url = "/redoc" if DEBUG else None
-
 app = FastAPI(
     debug=DEBUG,
     title="ASPIC",
@@ -276,9 +274,9 @@ Path(UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
 Path(PREVIEW_DIR).mkdir(parents=True, exist_ok=True)
 
 
-# ============================================
+# =========================================================
 # ОБРАБОТЧИКИ ОШИБОК 404
-# ============================================
+# =========================================================
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
     """Обработчик для несуществующих страниц."""
@@ -288,7 +286,6 @@ async def not_found_handler(request: Request, exc):
             status_code=404,
             content={"detail": "Ресурс не найден"}
         )
-
     # Для всех остальных страниц - перенаправляем на главную с сообщением об ошибке
     # Но только если веб-интерфейс включен
     if ENABLE_WEB_UI:
@@ -298,9 +295,9 @@ async def not_found_handler(request: Request, exc):
         return await api_only_404_page(request)
 
 
-# ============================================
+# =========================================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-# ============================================
+# =========================================================
 def generate_token() -> str:
     return secrets.token_urlsafe(TOKEN_LENGTH)[:TOKEN_LENGTH]
 
@@ -392,15 +389,76 @@ def format_datetime_for_display(dt_str: str) -> str:
         return dt_str[:16] if len(dt_str) > 16 else dt_str
 
 
-def format_ttl(ttl_minutes: int) -> str:
-    """Форматирует TTL для отображения."""
-    if not ttl_minutes or ttl_minutes == 0:
+def format_ttl(ttl_hours: int) -> str:
+    """Форматирует TTL в часах для отображения с правильным склонением."""
+    if not ttl_hours or ttl_hours == 0:
         return "Без ограничения"
-    if ttl_minutes < 60:
-        return f"{ttl_minutes} минут"
-    if ttl_minutes < 1440:
-        return f"{ttl_minutes // 60} часов {ttl_minutes % 60} минут"
-    return f"{ttl_minutes // 1440} дней {ttl_minutes % 1440 // 60} часов"
+
+    if ttl_hours < 24:
+        # Часы: 1 час, 2-4 часа, 5-20 часов
+        if ttl_hours == 1:
+            return "через 1 час"
+        elif ttl_hours in (2, 3, 4):
+            return f"через {ttl_hours} часа"
+        else:
+            return f"через {ttl_hours} часов"
+
+    if ttl_hours < 168:  # 7 дней
+        days = ttl_hours // 24
+        remaining_hours = ttl_hours % 24
+
+        # Дни: 1 день, 2-4 дня, 5-20 дней
+        if days == 1:
+            days_str = "1 день"
+        elif days in (2, 3, 4):
+            days_str = f"{days} дня"
+        else:
+            days_str = f"{days} дней"
+
+        if remaining_hours == 0:
+            return f"через {days_str}"
+        else:
+            # Часы
+            if remaining_hours == 1:
+                hours_str = "1 час"
+            elif remaining_hours in (2, 3, 4):
+                hours_str = f"{remaining_hours} часа"
+            else:
+                hours_str = f"{remaining_hours} часов"
+            return f"через {days_str} {hours_str}"
+
+    if ttl_hours < 8760:  # 1 год
+        days = ttl_hours // 24
+        # Дни
+        if days == 1:
+            return "через 1 день"
+        elif days in (2, 3, 4):
+            return f"через {days} дня"
+        else:
+            return f"через {days} дней"
+
+    # Годы
+    years = ttl_hours // 8760
+    remaining_days = (ttl_hours % 8760) // 24
+
+    if years == 1:
+        years_str = "1 год"
+    elif years in (2, 3, 4):
+        years_str = f"{years} года"
+    else:
+        years_str = f"{years} лет"
+
+    if remaining_days == 0:
+        return f"через {years_str}"
+    else:
+        # Дни
+        if remaining_days == 1:
+            days_str = "1 день"
+        elif remaining_days in (2, 3, 4):
+            days_str = f"{remaining_days} дня"
+        else:
+            days_str = f"{remaining_days} дней"
+        return f"через {years_str} {days_str}"
 
 
 async def get_image_info(file_path: Path) -> Optional[Dict]:
@@ -434,7 +492,6 @@ async def verify_file_access(
     file_info = await get_file_metadata(token)
     if not file_info:
         return None
-
     # Проверяем доступ через вебхук (передаём весь request)
     webhook_url = file_info.get('webhook_url', '')
 
@@ -452,9 +509,9 @@ async def verify_file_access(
     return file_info
 
 
-# ============================================
+# =========================================================
 # ГЛАВНАЯ СТРАНИЦА (ЗАГРУЗКА)
-# ============================================
+# =========================================================
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, error: str = None):
     # Если веб-интерфейс отключен, загрузка недоступна - возвращаем 404
@@ -473,6 +530,14 @@ async def index(request: Request, error: str = None):
     has_unlimited = check_unlimited_upload_access(request)
     effective_max_size = MAX_UNLIMITED_FILE_SIZE if has_unlimited else MAX_FILE_SIZE
 
+    # Получаем значения по умолчанию для автоудаления
+    default_expire_date = get_default_expire_date()
+    default_ttl_hours = get_default_ttl_hours()
+
+    # Отладка
+    print(f"🔍 DEBUG: default_expire_date = '{default_expire_date}'")
+    print(f"🔍 DEBUG: default_ttl_hours = {default_ttl_hours}")
+
     response = templates.TemplateResponse(
         "index.html",
         {
@@ -482,7 +547,10 @@ async def index(request: Request, error: str = None):
             "user_id": user_id,
             "error_message": error_message,
             "format_file_size": format_file_size,
-            "get_file_icon": get_file_icon
+            "get_file_icon": get_file_icon,
+            "default_expire_date": default_expire_date,
+            "default_ttl_hours": default_ttl_hours,
+            "format_ttl_hours": format_ttl_hours
         }
     )
 
@@ -506,15 +574,14 @@ async def index(request: Request, error: str = None):
     return response
 
 
-# ============================================
+# =========================================================
 # СТРАНИЦА ПРОСМОТРА ФАЙЛА
-# ============================================
+# =========================================================
 @app.get("/view/{token}", response_class=HTMLResponse)
 async def view_file(request: Request, token: str):
     """Страница с предпросмотром и информацией о файле."""
     # Просмотр доступен ВСЕГДА, даже если веб-интерфейс отключен!
     # Не проверяем ENABLE_WEB_UI здесь
-
     # Проверяем доступ к файлу (и увеличиваем счетчик просмотров)
     file_info = await verify_file_access(token, request, check_view=True)
     if not file_info:
@@ -550,7 +617,7 @@ async def view_file(request: Request, token: str):
     # Подготавливаем информацию о сроках жизни файла
     expire_info = {
         'expire_date': format_datetime_for_display(file_info.get('expire_date', '')),
-        'ttl_minutes': format_ttl(file_info.get('ttl_minutes', 0))
+        'ttl_hours': format_ttl(file_info.get('ttl_hours', 0))
     }
 
     return templates.TemplateResponse(
@@ -577,9 +644,9 @@ async def view_file(request: Request, token: str):
     )
 
 
-# ============================================
+# =========================================================
 # ПРЕДПРОСМОТР ФАЙЛА (ПРЯМОЙ ДОСТУП)
-# ============================================
+# =========================================================
 @app.get("/file/{token}")
 async def preview_file(request: Request, token: str):
     """Отдает файл для предпросмотра (НЕ увеличивает просмотры)."""
@@ -596,7 +663,6 @@ async def preview_file(request: Request, token: str):
             )
         else:
             raise HTTPException(status_code=404, detail="Файл не найден")
-
     # Используем абстракцию хранилища - теперь get() возвращает путь как строку
     file_path = await file_storage.get(token, file_info['filename'])
     if not file_path:
@@ -619,9 +685,9 @@ async def preview_file(request: Request, token: str):
     )
 
 
-# ============================================
+# =========================================================
 # СКАЧИВАНИЕ ФАЙЛА
-# ============================================
+# =========================================================
 @app.get("/download/{token}")
 async def download_file(request: Request, token: str):
     """Скачивание файла с увеличением счетчика скачиваний."""
@@ -629,7 +695,6 @@ async def download_file(request: Request, token: str):
     file_info = await verify_file_access(token, request, check_view=False)
     if not file_info:
         raise HTTPException(status_code=404, detail="Файл не найден")
-
     # Увеличиваем счетчик скачиваний
     await increment_download_count(token)
 
@@ -645,16 +710,15 @@ async def download_file(request: Request, token: str):
     )
 
 
-# ============================================
+# =========================================================
 # API ДЛЯ ФАЙЛОВ
-# ============================================
+# =========================================================
 @app.get("/api/file/{token}")
 async def get_file_info(request: Request, token: str):
     """API для получения информации о файле (с проверкой доступа)."""
     file_info = await verify_file_access(token, request, check_view=False)
     if not file_info:
         raise HTTPException(status_code=404, detail="Файл не найден")
-
     return {
         "token": file_info['token'],
         "filename": file_info['filename'],
@@ -668,25 +732,25 @@ async def get_file_info(request: Request, token: str):
         "downloads": file_info['downloads'],
         "has_webhook": bool(file_info.get('webhook_url')),
         "expire_date": file_info.get('expire_date'),
-        "ttl_minutes": file_info.get('ttl_minutes', 0),
+        "ttl_hours": file_info.get('ttl_hours', 0),
         "page_url": f"/view/{token}",
         "preview_url": file_storage.get_public_path(token, file_info['filename']),
         "download_url": f"/download/{token}"
     }
 
 
-# ============================================
+# =========================================================
 # API ДЛЯ MIME-МАППИНГА (для frontend)
-# ============================================
+# =========================================================
 @app.get("/api/mime-map")
 async def get_mime_map_api():
     """Возвращает маппинг расширений для предпросмотра (для frontend)."""
     return PREVIEW_MIME_MAP
 
 
-# ============================================
+# =========================================================
 # ЗАГРУЗКА С ПРЕДПРОСМОТРОМ
-# ============================================
+# =========================================================
 @app.post("/api/preview")
 @limiter.limit(RATE_LIMIT_UPLOAD)
 async def create_preview(
@@ -696,7 +760,6 @@ async def create_preview(
 ):
     # Проверяем доступ к большим файлам через отдельную функцию
     effective_max_size = MAX_UNLIMITED_FILE_SIZE if check_unlimited_upload_access(request) else MAX_FILE_SIZE
-
     # Проверяем размер файла ДО чтения в память (если файл сообщает свой размер)
     if file.size is not None and file.size > effective_max_size:
         raise HTTPException(
@@ -795,7 +858,6 @@ async def create_preview(
 async def get_preview_file(filename: str):
     if ".." in filename or "/" in filename:
         raise HTTPException(status_code=400, detail="Некорректное имя файла")
-
     file_path = Path(PREVIEW_DIR) / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Файл предпросмотра не найден")
@@ -811,9 +873,9 @@ async def get_preview_file(filename: str):
     )
 
 
-# ============================================
+# =========================================================
 # ПОДТВЕРЖДЕНИЕ ЗАГРУЗКИ
-# ============================================
+# =========================================================
 @app.post("/api/confirm-upload")
 @limiter.limit(RATE_LIMIT_UPLOAD)
 async def confirm_upload(
@@ -829,8 +891,7 @@ async def confirm_upload(
     webhook_url = data.get("webhook_url", "")
     delete_password = data.get("delete_password", "")
     expire_date = data.get("expire_date", "")  # дата удаления
-    ttl_minutes = data.get("ttl_minutes", 0)    # TTL после последнего обращения
-
+    ttl_hours = data.get("ttl_hours", 0)  # TTL после последнего обращения (в часах)
     # Валидация полей
     if webhook_url and (len(webhook_url) < 4 or len(webhook_url) > 1024):
         raise HTTPException(status_code=400, detail="webhook_url должен быть от 4 до 1024 символов")
@@ -838,10 +899,10 @@ async def confirm_upload(
     if delete_password and (len(delete_password) < 4 or len(delete_password) > 16):
         raise HTTPException(status_code=400, detail="delete_password должен быть от 4 до 16 символов")
 
-    if ttl_minutes:
-        ttl_minutes = int(ttl_minutes)
-        if ttl_minutes < 0 or ttl_minutes > 525600:  # максимум 1 год в минутах
-            raise HTTPException(status_code=400, detail="ttl_minutes должен быть от 0 до 525600")
+    if ttl_hours:
+        ttl_hours = int(ttl_hours)
+        if ttl_hours < 0 or ttl_hours > 87600:  # максимум 10 лет в часах
+            raise HTTPException(status_code=400, detail="ttl_hours должен быть от 0 до 87600")
 
     if not preview_id:
         raise HTTPException(status_code=400, detail="preview_id обязателен")
@@ -929,7 +990,7 @@ async def confirm_upload(
             webhook_url=webhook_url,
             delete_password=delete_password,
             expire_date=expire_date_parsed,
-            ttl_minutes=ttl_minutes
+            ttl_hours=ttl_hours
         )
         print(f"💾 Метаданные сохранены для токена: {token}")
     except Exception as e:
@@ -956,13 +1017,13 @@ async def confirm_upload(
         "download_url": download_path,
         "has_webhook": bool(webhook_url),
         "expire_date": expire_date_parsed,
-        "ttl_minutes": ttl_minutes
+        "ttl_hours": ttl_hours
     }
 
 
-# ============================================
+# =========================================================
 # КОММЕНТАРИИ
-# ============================================
+# =========================================================
 @app.post("/view/{token}/comment")
 @limiter.limit(RATE_LIMIT_COMMENT)
 async def add_comment_to_file(
@@ -977,7 +1038,6 @@ async def add_comment_to_file(
             status_code=404,
             content={"detail": "Файл не найден"}
         )
-
     if file_info.get('deleted', False):
         return JSONResponse(
             status_code=400,
@@ -1012,9 +1072,9 @@ async def add_comment_to_file(
     )
 
 
-# ============================================
+# =========================================================
 # УДАЛЕНИЕ
-# ============================================
+# =========================================================
 @app.post("/view/{token}/delete")
 @limiter.limit(RATE_LIMIT_DELETE)
 async def delete_file(
@@ -1033,7 +1093,6 @@ async def delete_file(
             status_code=400,
             content={"detail": "Неверный ответ капчи"}
         )
-
     file_info = await get_file_metadata(token, include_deleted=True)
     if not file_info:
         return JSONResponse(
@@ -1101,15 +1160,14 @@ async def delete_file(
     )
 
 
-# ============================================
+# =========================================================
 # API ДЛЯ КОММЕНТАРИЕВ
-# ============================================
+# =========================================================
 @app.get("/api/comments/{token}")
 async def get_file_comments(token: str):
     file_info = await get_file_metadata(token, include_deleted=True)
     if not file_info:
         raise HTTPException(status_code=404, detail="Файл не найден")
-
     comments = await get_comments(token)
 
     # Экранируем комментарии для API
@@ -1127,9 +1185,9 @@ async def get_captcha(request: Request, token: str):
     return captcha
 
 
-# ============================================
+# =========================================================
 # ЗАПУСК
-# ============================================
+# =========================================================
 if __name__ == "__main__":
     import uvicorn
 

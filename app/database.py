@@ -1,3 +1,5 @@
+# app/database.py
+
 import os
 import aiosqlite
 from typing import Optional, Dict, List, Any
@@ -49,7 +51,7 @@ async def init_db(db_path: str = DB_PATH):
                     webhook_url TEXT DEFAULT '', -- URL вебхука для вызова при попытке доступа к файлу
                     delete_password TEXT DEFAULT '', -- Пароль для удаления файла
                     expire_date TIMESTAMP, -- Дата и время автоматического удаления файла (абсолютная дата)
-                    ttl_minutes INTEGER DEFAULT 0 -- Время жизни после последнего обращения (в минутах, 0 = без ограничения)
+                    ttl_hours INTEGER DEFAULT 0 -- Время жизни после последнего обращения (в часах, 0 = без ограничения)
                 )
             ''')
 
@@ -120,9 +122,25 @@ async def init_db(db_path: str = DB_PATH):
                 print("🔄 Обновление таблицы files: добавляем поле expire_date...")
                 await db.execute("ALTER TABLE files ADD COLUMN expire_date TIMESTAMP")
 
-            if 'ttl_minutes' not in files_columns:
-                print("🔄 Обновление таблицы files: добавляем поле ttl_minutes...")
-                await db.execute("ALTER TABLE files ADD COLUMN ttl_minutes INTEGER DEFAULT 0")
+            # Сначала добавляем ttl_hours, если его нет
+            if 'ttl_hours' not in files_columns:
+                print("🔄 Обновление таблицы files: добавляем поле ttl_hours...")
+                await db.execute("ALTER TABLE files ADD COLUMN ttl_hours INTEGER DEFAULT 0")
+                # Обновляем список колонок после добавления
+                files_columns = await get_table_info(db, "files")
+
+            # Проверяем наличие ttl_minutes и переносим данные в ttl_hours
+            if 'ttl_minutes' in files_columns:
+                print("🔄 Обновление таблицы files: переносим данные из ttl_minutes в ttl_hours...")
+                # Переносим данные (делим на 60, округляем вверх)
+                await db.execute('''
+                    UPDATE files SET ttl_hours = (ttl_minutes + 59) / 60 WHERE ttl_minutes > 0
+                ''')
+                # Удаляем старый столбец ttl_minutes
+                await db.execute("ALTER TABLE files DROP COLUMN ttl_minutes")
+                print("🔄 Обновление таблицы files: удален столбец ttl_minutes")
+                # Обновляем список колонок после удаления
+                files_columns = await get_table_info(db, "files")
 
             # === ОПТИМИЗАЦИЯ ИНДЕКСОВ ===
 
@@ -208,7 +226,7 @@ async def save_file_metadata(
         webhook_url: str = '',
         delete_password: str = '',
         expire_date: str = None,  # дата удаления
-        ttl_minutes: int = 0,      # TTL после последнего обращения
+        ttl_hours: int = 0,        # TTL после последнего обращения (в часах)
         db_path: str = DB_PATH
 ) -> None:
     """Сохраняет метаданные загруженного файла."""
@@ -249,9 +267,9 @@ async def save_file_metadata(
                 values.append(expire_date)
                 placeholders.append('?')
 
-            if 'ttl_minutes' in columns and ttl_minutes:
-                fields.append('ttl_minutes')
-                values.append(ttl_minutes)
+            if 'ttl_hours' in columns and ttl_hours:
+                fields.append('ttl_hours')
+                values.append(ttl_hours)
                 placeholders.append('?')
 
             query = f'''
@@ -291,9 +309,9 @@ async def save_file_metadata(
                 values.append(expire_date)
                 placeholders.append('?')
 
-            if 'ttl_minutes' in columns and ttl_minutes:
-                fields.append('ttl_minutes')
-                values.append(ttl_minutes)
+            if 'ttl_hours' in columns and ttl_hours:
+                fields.append('ttl_hours')
+                values.append(ttl_hours)
                 placeholders.append('?')
 
             query = f'''
@@ -325,7 +343,7 @@ async def get_file_metadata(
 
         # Добавляем новые поля, если они существуют
         optional_fields = ['last_view_date', 'last_download_date', 'webhook_url', 'delete_password',
-                           'expire_date', 'ttl_minutes']
+                           'expire_date', 'ttl_hours']
         for field in optional_fields:
             if field in columns:
                 base_fields.append(field)
@@ -387,8 +405,8 @@ async def get_file_metadata(
             if 'expire_date' in columns and len(row) > field_index:
                 result['expire_date'] = row[field_index]
                 field_index += 1
-            if 'ttl_minutes' in columns and len(row) > field_index:
-                result['ttl_minutes'] = row[field_index]
+            if 'ttl_hours' in columns and len(row) > field_index:
+                result['ttl_hours'] = row[field_index]
 
             return result
         return None
