@@ -19,6 +19,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import aiofiles
+from urllib.parse import quote
 
 # Импортируем хранилище
 from app.storage.factory import get_storage_backend
@@ -703,18 +704,30 @@ async def download_file(request: Request, token: str):
     file_info = await verify_file_access(token, request, check_view=False)
     if not file_info:
         raise HTTPException(status_code=404, detail="Файл не найден")
+
     # Увеличиваем счетчик скачиваний
     await increment_download_count(token)
 
-    # Используем абстракцию хранилища - теперь get() возвращает путь как строку
+    # Используем абстракцию хранилища
     file_path = await file_storage.get(token, file_info['filename'])
     if not file_path:
         raise HTTPException(status_code=404, detail="Файл не найден в хранилище")
 
+    # Оригинальное имя файла из БД
+    original_filename = file_info['filename']
+
+    # Кодируем имя для заголовка (RFC 5987) - поддержка кириллицы
+    filename_encoded = quote(original_filename)
+
+    # Возвращаем файл ТОЛЬКО с заголовком, без параметра filename в FileResponse
+    # FastAPI использует filename из заголовка, если он передан
     return FileResponse(
-        path=file_path,  # Теперь это строка-путь
-        filename=file_info['filename'],
-        media_type='application/octet-stream'
+        path=file_path,
+        media_type='application/octet-stream',
+        filename=original_filename,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}"
+        }
     )
 
 
