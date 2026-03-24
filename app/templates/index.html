@@ -238,6 +238,10 @@
                 </div>
             </div>
 
+            <!-- СКРЫТЫЕ ПОЛЯ-ДУБЛЕРЫ (всегда присутствуют в DOM) -->
+            <input type="hidden" id="hiddenExpireDate" value="{{ default_expire_date }}">
+            <input type="hidden" id="hiddenTtlHours" value="{{ default_ttl_hours }}">
+
             <div class="preview-actions">
                 <button class="btn btn-primary" id="confirmBtn">
                     <span class="btn-icon">✨</span>
@@ -253,6 +257,57 @@
                 <div class="spinner"></div>
                 <span>Сохранение файла...</span>
             </div>
+
+            <!-- ПРИНУДИТЕЛЬНАЯ УСТАНОВКА ЗНАЧЕНИЙ ПЕРЕД ОТПРАВКОЙ -->
+            <script>
+                // Добавляем обработчик на существующую кнопку, не заменяя её
+                document.addEventListener('DOMContentLoaded', function() {
+                    const confirmBtn = document.getElementById('confirmBtn');
+                    if (!confirmBtn) return;
+
+                    // Добавляем свой обработчик ПЕРЕД существующим (useCapture = true)
+                    confirmBtn.addEventListener('click', function(e) {
+                        const expireInput = document.getElementById('expireDate');
+                        const ttlInput = document.getElementById('ttlHours');
+                        const hiddenExpire = document.getElementById('hiddenExpireDate');
+                        const hiddenTtl = document.getElementById('hiddenTtlHours');
+
+                        let expireValue = '';
+                        let ttlValue = 0;
+
+                        if (expireInput && expireInput.value) {
+                            expireValue = expireInput.value;
+                        } else if (hiddenExpire && hiddenExpire.value) {
+                            expireValue = hiddenExpire.value;
+                            if (expireInput) expireInput.value = expireValue;
+                        }
+
+                        if (ttlInput && ttlInput.value && ttlInput.value !== '0') {
+                            ttlValue = parseInt(ttlInput.value);
+                        } else if (hiddenTtl && hiddenTtl.value && hiddenTtl.value !== '0') {
+                            ttlValue = parseInt(hiddenTtl.value);
+                            if (ttlInput) ttlInput.value = ttlValue;
+                        }
+
+                        if (!expireValue) {
+                            const defaultDate = new Date();
+                            defaultDate.setFullYear(defaultDate.getFullYear() + 1);
+                            expireValue = defaultDate.toISOString().split('T')[0];
+                            if (expireInput) expireInput.value = expireValue;
+                        }
+
+                        if (!ttlValue) {
+                            ttlValue = 8760;
+                            if (ttlInput) ttlInput.value = ttlValue;
+                        }
+
+                        window.__forcedExpireDate = expireValue;
+                        window.__forcedTtlHours = ttlValue;
+
+                        console.log('Forced values set:', expireValue, ttlValue);
+                    }, true); // true = обработчик выполнится ПЕРВЫМ, до остальных
+                });
+            </script>
         </div>
 
         <!-- СОСТОЯНИЕ 3: РЕЗУЛЬТАТ -->

@@ -1,3 +1,4 @@
+// app/static/app.js
 // Состояния приложения
 const State = {
     UPLOAD: 'upload',
@@ -609,15 +610,73 @@ async function confirmUpload() {
         return;
     }
 
-    const webhookInput = document.getElementById('webhookUrl');
-    const passwordInput = document.getElementById('deletePassword');
+    // ========== ОБЪЯВЛЯЕМ ПЕРЕМЕННЫЕ В НАЧАЛЕ ==========
+    let expireDateValue = '';
+    let ttlHoursValue = 0;
+
+    // Используем принудительные значения, если они установлены
+    if (window.__forcedExpireDate) {
+        expireDateValue = window.__forcedExpireDate;
+        console.log('Using forced expireDate:', expireDateValue);
+    }
+    if (window.__forcedTtlHours) {
+        ttlHoursValue = window.__forcedTtlHours;
+        console.log('Using forced ttlHours:', ttlHoursValue);
+    }
+
+    // ========== ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ==========
+    console.log('=== CONFIRM UPLOAD DEBUG ===');
+
     const expireDateInput = document.getElementById('expireDate');
     const ttlHoursInput = document.getElementById('ttlHours');
+    const hiddenExpireDate = document.getElementById('hiddenExpireDate');
+    const hiddenTtlHours = document.getElementById('hiddenTtlHours');
+
+    console.log('expireDateInput.value:', expireDateInput?.value);
+    console.log('hiddenExpireDate.value:', hiddenExpireDate?.value);
+    console.log('ttlHoursInput.value:', ttlHoursInput?.value);
+    console.log('hiddenTtlHours.value:', hiddenTtlHours?.value);
+
+    // Берем значение из видимого поля expireDate (если еще не установлено принудительно)
+    if (!expireDateValue) {
+        if (expireDateInput && expireDateInput.value) {
+            expireDateValue = expireDateInput.value;
+            console.log('Using expireDateInput.value:', expireDateValue);
+        } else if (hiddenExpireDate && hiddenExpireDate.value) {
+            expireDateValue = hiddenExpireDate.value;
+            console.log('Using hiddenExpireDate.value:', expireDateValue);
+        } else {
+            // Если ничего нет, устанавливаем дату через 1 год
+            const defaultDate = new Date();
+            defaultDate.setFullYear(defaultDate.getFullYear() + 1);
+            expireDateValue = defaultDate.toISOString().split('T')[0];
+            console.log('Using fallback date:', expireDateValue);
+        }
+    }
+
+    // Берем значение из видимого поля ttlHours (если еще не установлено принудительно)
+    if (!ttlHoursValue) {
+        if (ttlHoursInput && ttlHoursInput.value && ttlHoursInput.value !== '0') {
+            ttlHoursValue = parseInt(ttlHoursInput.value);
+            console.log('Using ttlHoursInput.value:', ttlHoursValue);
+        } else if (hiddenTtlHours && hiddenTtlHours.value && hiddenTtlHours.value !== '0') {
+            ttlHoursValue = parseInt(hiddenTtlHours.value);
+            console.log('Using hiddenTtlHours.value:', ttlHoursValue);
+        } else {
+            ttlHoursValue = 8760; // 1 год
+            console.log('Using fallback TTL:', ttlHoursValue);
+        }
+    }
+
+    console.log('FINAL expireDateValue:', expireDateValue);
+    console.log('FINAL ttlHoursValue:', ttlHoursValue);
+    console.log('=== END DEBUG ===');
+
+    const webhookInput = document.getElementById('webhookUrl');
+    const passwordInput = document.getElementById('deletePassword');
 
     const webhookUrlValue = webhookInput?.value.trim() || '';
     const deletePasswordValue = passwordInput?.value.trim() || '';
-    const expireDateValue = expireDateInput?.value.trim() || '';
-    const ttlHoursValue = ttlHoursInput?.value.trim() || 0;
 
     if (webhookUrlValue && !isValidUrl(webhookUrlValue)) {
         showError('❌ Введите корректный URL (начинается с http:// или https://)');
@@ -642,8 +701,10 @@ async function confirmUpload() {
             webhook_url: webhookUrlValue,
             delete_password: deletePasswordValue,
             expire_date: expireDateValue,
-            ttl_hours: parseInt(ttlHoursValue) || 0
+            ttl_hours: ttlHoursValue
         };
+
+        console.log('📤 REQUEST BODY:', requestBody);
 
         if (isTextEditable && originalTextContent !== null) {
             const textarea = elements.previewContainer.querySelector('.text-editor-area');

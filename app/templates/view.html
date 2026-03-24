@@ -16,7 +16,7 @@
             <h1 class="app-title">📦 ASPIC</h1>
             <p class="app-subtitle">Минималистичный файловый сервис</p>
             <nav class="app-nav">
-                <a href="/" class="btn btn-small">
+                <a href="/" class="btn btn-small" style="display: inline-block; width: auto; min-width: 100px; text-align: center;">
                     <span class="btn-icon">📁</span>
                     <span class="btn-text">Загрузить</span>
                 </a>
@@ -109,7 +109,7 @@
                 </div>
             </div>
 
-            <!-- ИНФОРМАЦИЯ ОБ АВТОМАТИЧЕСКОМ УДАЛЕНИИ - добавлен класс expire-info -->
+            <!-- ИНФОРМАЦИЯ ОБ АВТОМАТИЧЕСКОМ УДАЛЕНИИ -->
             {% if file.expire_date or (file.ttl_hours and file.ttl_hours > 0) %}
             <div class="file-stats expire-info">
                 <div class="stat-row">

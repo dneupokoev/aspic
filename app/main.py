@@ -72,17 +72,18 @@ def can_increment_view(token: str, ip: str) -> bool:
     """
     key = f"{token}:{ip}"
     now = datetime.now()
+
     if key in view_tracker:
         last_view = view_tracker[key]
         if now - last_view < timedelta(hours=1):
             return False
-        view_tracker[key] = now
 
-        # Очистка старых записей
-        if random.randint(1, 100) == 1:
-            cleanup_old_views()
+    view_tracker[key] = now
 
-        return True
+    if random.randint(1, 100) == 1:
+        cleanup_old_views()
+
+    return True
 
 
 def cleanup_old_views():
@@ -501,10 +502,17 @@ async def verify_file_access(
         return None
 
     # Если check_view=True, увеличиваем счетчик просмотров
-    client_ip = request.client.host
-    if check_view and can_increment_view(token, client_ip):
-        await increment_view_count(token)
-        print(f"👁️ Просмотр для {token} от IP {client_ip}")
+    if check_view:
+        # Получаем реальный IP клиента
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            client_ip = forwarded.split(",")[0].strip()
+        else:
+            client_ip = request.client.host
+
+        if can_increment_view(token, client_ip):
+            await increment_view_count(token)
+            print(f"👁️ Просмотр для {token} от IP {client_ip}")
 
     return file_info
 
@@ -892,6 +900,11 @@ async def confirm_upload(
     delete_password = data.get("delete_password", "")
     expire_date = data.get("expire_date", "")  # дата удаления
     ttl_hours = data.get("ttl_hours", 0)  # TTL после последнего обращения (в часах)
+    # ПОДРОБНАЯ ОТЛАДКА
+    print(f"🔍 [DEBUG] Received from client: expire_date='{expire_date}', ttl_hours={ttl_hours}")
+    print(f"🔍 [DEBUG] Full data keys: {list(data.keys())}")
+    print(f"🔍 [DEBUG] expire_date = '{expire_date}', type: {type(expire_date)}")
+    print(f"🔍 [DEBUG] ttl_hours = {ttl_hours}, type: {type(ttl_hours)}")
     # Валидация полей
     if webhook_url and (len(webhook_url) < 4 or len(webhook_url) > 1024):
         raise HTTPException(status_code=400, detail="webhook_url должен быть от 4 до 1024 символов")
@@ -1191,4 +1204,12 @@ async def get_captcha(request: Request, token: str):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("app.main:app", host=HOST, port=PORT, reload=DEBUG)
+    # Добавляем поддержку прокси-заголовков для получения реального IP
+    uvicorn.run(
+        "app.main:app",
+        host=HOST,
+        port=PORT,
+        reload=DEBUG,
+        proxy_headers=True,
+        forwarded_allow_ips="*"
+    )

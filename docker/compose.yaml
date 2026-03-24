@@ -20,6 +20,8 @@ services:
       retries: 3
     networks:
       - aspic_network
+    environment:
+      - FORWARDED_ALLOW_IPS=*
 
 networks:
   aspic_network:
