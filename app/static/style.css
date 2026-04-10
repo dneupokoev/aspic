@@ -308,6 +308,36 @@ body {
     margin-top: 1rem;
 }
 
+/* Информация о лимитах для обычных пользователей */
+.upload-limits-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin-top: 0.75rem;
+    background: rgba(67, 97, 238, 0.06);
+    border: 1px solid rgba(67, 97, 238, 0.15);
+    border-radius: var(--border-radius-sm);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--gray);
+}
+
+.limits-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.limits-text {
+    flex: 1;
+}
+
+/* Предупреждение при исчерпании лимитов */
+.upload-limits-info.limits-warning {
+    background: rgba(239, 71, 111, 0.08);
+    border-color: rgba(239, 71, 111, 0.25);
+}
+
 /* ============================================
    БАЗОВЫЙ СТИЛЬ КНОПОК
    ============================================ */
@@ -1790,6 +1820,17 @@ body {
     .preview-options,
     .webhook-params-field {
         background: #363636;
+    }
+
+    .upload-limits-info {
+        background: rgba(67, 97, 238, 0.1);
+        border-color: rgba(67, 97, 238, 0.25);
+        color: #a0a0a0;
+    }
+
+    .upload-limits-info.limits-warning {
+        background: rgba(239, 71, 111, 0.12);
+        border-color: rgba(239, 71, 111, 0.35);
     }
 
     .preview-container { border-color: #404040; }

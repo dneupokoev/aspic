@@ -11,10 +11,12 @@ from typing import Optional, List, Dict
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 import magic
-from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException, BackgroundTasks, Header
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
+from typing import Optional
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -28,7 +30,12 @@ from app.database import (
     add_comment, get_comments, mark_file_as_deleted,
     get_deleted_files, permanently_delete_file,
     increment_view_count, increment_download_count,
-    update_webhook_url, set_delete_password, verify_delete_password
+    update_webhook_url, set_delete_password, verify_delete_password,
+    # Логирование загрузок и проверка лимитов
+    init_upload_log_table, log_upload, get_upload_stats, get_wait_time_for_limit,
+    cleanup_old_upload_logs,
+    # Автоудаление файлов по истёкшей дате
+    get_last_auto_cleanup_time, update_auto_cleanup_time, get_files_for_auto_cleanup_expired,
 )
 from app.webhook import check_webhook_access
 from app.captcha import captcha_store
@@ -44,7 +51,14 @@ from app.config import (
     UNLIMITED_UPLOAD_SECRET, MAX_UNLIMITED_FILE_SIZE,
     EXT_TO_MIME, PREVIEW_MIME_MAP,
     # для автоудаления
-    get_default_expire_date, get_default_ttl_hours, format_ttl_hours
+    get_default_expire_date, get_default_ttl_hours, format_ttl_hours,
+    # ограничения для обычных пользователей
+    UPLOAD_LIMIT_WINDOW_HOURS, UPLOAD_LIMIT_MAX_FILES,
+    UPLOAD_LIMIT_MAX_FILE_SIZE, UPLOAD_LIMIT_MAX_TOTAL_SIZE,
+    AUTO_CLEANUP_MIN_INTERVAL_HOURS,
+    # API токены
+    API_UPLOAD_TOKENS,
+    format_wait_time,
 )
 
 # Константы для ограничений длины текста
@@ -220,6 +234,8 @@ def parse_expire_date(expire_date_str: str) -> Optional[str]:
 async def lifespan(app: FastAPI):
     # Startup
     await init_db(DB_PATH)
+    await init_upload_log_table(DB_PATH)
+
     # Инициализация хранилища файлов
     global file_storage
     storage_config = {
@@ -238,6 +254,8 @@ async def lifespan(app: FastAPI):
     print(f"🌐 Веб-интерфейс: {web_ui_status}")
     print(f"🔗 Webhook timeout: {WEBHOOK_TIMEOUT}s, cache TTL: {WEBHOOK_CACHE_TTL}s")
     print(f"⏰ Автоудаление по умолчанию: дата = +{get_default_expire_date()}, TTL = {format_ttl_hours(get_default_ttl_hours())}")
+    print(f"📏 Лимиты для обычных пользователей: {UPLOAD_LIMIT_MAX_FILES} файлов / {UPLOAD_LIMIT_WINDOW_HOURS}ч, макс. {UPLOAD_LIMIT_MAX_TOTAL_SIZE // (1024*1024)}МБ суммарно")
+    print(f"🗑️ Автоудаление файлов по истёкшей дате (задаётся при загрузке)")
 
     yield
 
@@ -255,7 +273,7 @@ app = FastAPI(
     debug=DEBUG,
     title="ASPIC",
     description="A Simple Public Image/File Cloud - минималистичный файловый хостинг с комментариями",
-    version="0.1.0",
+    version="0.1.1",
     lifespan=lifespan,
     openapi_url="/openapi.json" if DEBUG else None,
     docs_url=docs_url,
@@ -559,7 +577,13 @@ async def index(request: Request, error: str = None):
             "get_file_icon": get_file_icon,
             "default_expire_date": default_expire_date,
             "default_ttl_hours": default_ttl_hours,
-            "format_ttl_hours": format_ttl_hours
+            "format_ttl_hours": format_ttl_hours,
+            # Информация о лимитах для обычных пользователей
+            "has_unlimited": has_unlimited,
+            "upload_limit_max_files": UPLOAD_LIMIT_MAX_FILES,
+            "upload_limit_window_hours": UPLOAD_LIMIT_WINDOW_HOURS,
+            "upload_limit_max_total_size_mb": UPLOAD_LIMIT_MAX_TOTAL_SIZE // (1024 * 1024),
+            "upload_limit_max_file_size_mb": UPLOAD_LIMIT_MAX_FILE_SIZE // (1024 * 1024),
         }
     )
 
@@ -770,6 +794,336 @@ async def get_mime_map_api():
 
 
 # =========================================================
+# API ДЛЯ СТАТИСТИКИ ЗАГРУЗОК (для frontend)
+# =========================================================
+@app.get("/api/upload-stats")
+async def get_upload_stats_api(request: Request):
+    """
+    Возвращает текущую статистику загрузок для отображения остатков лимитов.
+    Только для обычных пользователей (unlimited видит 0).
+    """
+    has_unlimited = check_unlimited_upload_access(request)
+
+    if has_unlimited:
+        return {
+            'has_unlimited': True,
+            'files_used': 0,
+            'files_remaining': UPLOAD_LIMIT_MAX_FILES,
+            'total_size_used_mb': 0,
+            'total_size_remaining_mb': UPLOAD_LIMIT_MAX_TOTAL_SIZE // (1024 * 1024),
+            'max_file_size_mb': UPLOAD_LIMIT_MAX_FILE_SIZE // (1024 * 1024),
+            'max_files': UPLOAD_LIMIT_MAX_FILES,
+            'window_hours': UPLOAD_LIMIT_WINDOW_HOURS,
+        }
+
+    stats = await get_upload_stats(UPLOAD_LIMIT_WINDOW_HOURS)
+    files_used = stats['file_count']
+    total_size_used = stats['total_size']
+
+    files_remaining = max(0, UPLOAD_LIMIT_MAX_FILES - files_used)
+    total_size_remaining = max(0, UPLOAD_LIMIT_MAX_TOTAL_SIZE - total_size_used)
+
+    return {
+        'has_unlimited': False,
+        'files_used': files_used,
+        'files_remaining': files_remaining,
+        'total_size_used_mb': total_size_used // (1024 * 1024),
+        'total_size_remaining_mb': total_size_remaining // (1024 * 1024),
+        'max_file_size_mb': UPLOAD_LIMIT_MAX_FILE_SIZE // (1024 * 1024),
+        'max_files': UPLOAD_LIMIT_MAX_FILES,
+        'max_total_size_mb': UPLOAD_LIMIT_MAX_TOTAL_SIZE // (1024 * 1024),
+        'window_hours': UPLOAD_LIMIT_WINDOW_HOURS,
+    }
+
+
+# =========================================================
+# ПРОВЕРКА ЛИМИТОВ ДЛЯ ОБЫЧНЫХ ПОЛЬЗОВАТЕЛЕЙ
+# =========================================================
+async def check_upload_limits(
+        file_size: int,
+        has_unlimited: bool
+) -> Optional[Dict]:
+    """
+    Проверяет ОБЩИЕ лимиты для обычных пользователей.
+    Возвращает dict с ошибкой, если лимиты превышены, или None если всё ок.
+    """
+    # Пользователи с unlimited секретом не подчиняются лимитам
+    if has_unlimited:
+        return None
+
+    # Проверка размера одного файла
+    if file_size > UPLOAD_LIMIT_MAX_FILE_SIZE:
+        max_mb = UPLOAD_LIMIT_MAX_FILE_SIZE // (1024 * 1024)
+        return {
+            'detail': f"Файл слишком большой. Максимальный размер для обычных пользователей: {max_mb} МБ.",
+            'type': 'file_size_limit'
+        }
+
+    # Получаем ОБЩУЮ статистику загрузок за окно
+    stats = await get_upload_stats(UPLOAD_LIMIT_WINDOW_HOURS)
+
+    # Проверка количества файлов (общий лимит)
+    if stats['file_count'] >= UPLOAD_LIMIT_MAX_FILES:
+        wait_seconds = await get_wait_time_for_limit(UPLOAD_LIMIT_WINDOW_HOURS)
+        wait_str = format_wait_time(wait_seconds) if wait_seconds > 0 else "неизвестно"
+        return {
+            'detail': f"Превышен общий лимит загрузки: {UPLOAD_LIMIT_MAX_FILES} файлов за {UPLOAD_LIMIT_WINDOW_HOURS} часов "
+                      f"(уже загружено {stats['file_count']}). "
+                      f"Подождите {wait_str}, чтобы старые загрузки вышли из окна.",
+            'type': 'file_count_limit',
+            'wait_seconds': wait_seconds
+        }
+
+    # Проверка суммарного размера (общий лимит)
+    if stats['total_size'] + file_size > UPLOAD_LIMIT_MAX_TOTAL_SIZE:
+        total_mb = UPLOAD_LIMIT_MAX_TOTAL_SIZE // (1024 * 1024)
+        already_mb = stats['total_size'] // (1024 * 1024)
+        wait_seconds = await get_wait_time_for_limit(UPLOAD_LIMIT_WINDOW_HOURS)
+        wait_str = format_wait_time(wait_seconds) if wait_seconds > 0 else "неизвестно"
+        return {
+            'detail': f"Превышен общий суммарный лимит загрузки: {total_mb} МБ за {UPLOAD_LIMIT_WINDOW_HOURS} часов "
+                      f"(уже загружено {already_mb} МБ). "
+                      f"Подождите {wait_str}, чтобы старые загрузки вышли из окна.",
+            'type': 'total_size_limit',
+            'wait_seconds': wait_seconds
+        }
+
+    return None
+
+
+# =========================================================
+# АВТОМАТИЧЕСКОЕ УДАЛЕНИЕ ФАЙЛОВ ПО ИСТЁКШЕЙ ДАТЕ
+# =========================================================
+async def trigger_auto_cleanup() -> int:
+    """
+    Запускает автоудаление файлов с истёкшей expire_date.
+    Проверяет, прошло ли достаточно времени с последнего запуска.
+    Возвращает количество удалённых файлов или 0, если запуск не нужен.
+    """
+    from datetime import datetime, timedelta
+
+    last_cleanup = await get_last_auto_cleanup_time()
+    if last_cleanup:
+        last_dt = datetime.strptime(last_cleanup, "%Y-%m-%d %H:%M:%S")
+        now = datetime.utcnow()
+        elapsed = now - last_dt
+        min_interval = timedelta(hours=AUTO_CLEANUP_MIN_INTERVAL_HOURS)
+        if elapsed < min_interval:
+            remaining = min_interval - elapsed
+            print(f"⏭️ Автоудаление пропущено: прошло {elapsed}, минимум {min_interval}, осталось {remaining}")
+            return 0
+
+    # Находим файлы с истёкшей expire_date
+    files = await get_files_for_auto_cleanup_expired()
+    if not files:
+        # Обновляем время последнего запуска, чтобы не проверять слишком часто
+        await update_auto_cleanup_time()
+        print(f"✅ Автоудаление: нет файлов с истёкшей датой удаления")
+        return 0
+
+    deleted_count = 0
+    for file_info in files:
+        try:
+            # Soft delete
+            await mark_file_as_deleted(file_info['token'], f"Автоудаление: истекла дата {file_info.get('expire_date', '')}")
+            # Физическое удаление через хранилище
+            try:
+                await file_storage.delete(file_info['token'], file_info['filename'])
+            except Exception as e:
+                print(f"⚠️ Не удалось удалить файл {file_info['token']} из хранилища: {e}")
+
+            deleted_count += 1
+        except Exception as e:
+            print(f"⚠️ Ошибка автоудаления файла {file_info['token']}: {e}")
+
+    # Обновляем время последнего запуска
+    await update_auto_cleanup_time()
+    print(f"🗑️ Автоудаление: удалено {deleted_count} файлов с истёкшей датой")
+    return deleted_count
+
+
+# =========================================================
+# ПРЯМАЯ ЗАГРУЗКА ФАЙЛА ЧЕРЕЗ API (с авторизацией по токену)
+# =========================================================
+
+class APIUploadResponse(BaseModel):
+    """Модель ответа для /api/upload."""
+    status: str = Field(..., description="Статус операции")
+    token: str = Field(..., description="Уникальный токен файла")
+    view_url: str = Field(..., description="URL страницы просмотра")
+    file_url: str = Field(..., description="Прямая ссылка на файл")
+    download_url: str = Field(..., description="URL для скачивания")
+    filename: str = Field(..., description="Имя файла")
+    size: int = Field(..., description="Размер файла в байтах")
+    mime_type: str = Field(..., description="MIME-тип файла")
+    author: str = Field(..., description="Автор загрузки (из токена)")
+
+
+class APIUploadErrorResponse(BaseModel):
+    """Модель ошибки для /api/upload."""
+    detail: str = Field(..., description="Описание ошибки")
+
+
+@app.post(
+    "/api/upload",
+    response_model=APIUploadResponse,
+    responses={
+        401: {"model": APIUploadErrorResponse, "description": "Неверный или отсутствующий токен"},
+        400: {"model": APIUploadErrorResponse, "description": "Ошибка валидации или размера файла"},
+        429: {"model": APIUploadErrorResponse, "description": "Превышены лимиты загрузки"},
+        507: {"model": APIUploadErrorResponse, "description": "Недостаточно места на диске"},
+    },
+    summary="Загрузить файл через API",
+    description="""
+**Загружает файл напрямую, в один запрос (без предпросмотра).**
+
+Требуется авторизация через токен в заголовке `X-Upload-Token`.
+Токены настраиваются в `.env` через `API_UPLOAD_TOKENS`.
+
+Файл сразу сохраняется и получает вечную ссылку.
+Можно указать параметры защиты и автоудаления.""",
+    tags=["API - Загрузка файлов"],
+)
+async def api_upload_upload(
+        request: Request,
+        file: UploadFile = File(..., description="Файл для загрузки"),
+        webhook_url: Optional[str] = Form(None, description="URL вебхука для внешней авторизации"),
+        delete_password: Optional[str] = Form(None, description="Пароль для удаления файла (4–16 символов)"),
+        expire_date: Optional[str] = Form(None, description="Дата автоудаления в формате YYYY-MM-DD"),
+        ttl_hours: Optional[int] = Form(None, description="Срок жизни после последнего обращения (часы, 0 = вечно)"),
+        x_upload_token: Optional[str] = Header(None, description="Токен авторизации (заголовок X-Upload-Token)"),
+        background_tasks: BackgroundTasks = None,
+):
+    # --- 1. Авторизация по токену ---
+    if not API_UPLOAD_TOKENS:
+        raise HTTPException(status_code=503, detail="Эндпоинт /api/upload отключён. Настройте API_UPLOAD_TOKENS в .env.")
+
+    if not x_upload_token or x_upload_token not in API_UPLOAD_TOKENS:
+        raise HTTPException(status_code=401, detail="Неверный или отсутствующий токен. Передайте заголовок X-Upload-Token с валидным токеном.")
+
+    author = API_UPLOAD_TOKENS[x_upload_token]
+
+    # --- 2. Проверка размера файла ---
+    if file.size is not None and file.size > MAX_UNLIMITED_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Файл слишком большой. Максимум: {MAX_UNLIMITED_FILE_SIZE // (1024*1024)} МБ"
+        )
+
+    # --- 3. Чтение файла ---
+    try:
+        file_data = await file.read()
+    except MemoryError:
+        raise HTTPException(status_code=400, detail="Недостаточно памяти для обработки файла")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Ошибка чтения файла: {e}")
+
+    actual_size = len(file_data)
+    if actual_size > MAX_UNLIMITED_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Файл слишком большой. Максимум: {MAX_UNLIMITED_FILE_SIZE // (1024*1024)} МБ"
+        )
+
+    # --- 4. Проверка общего лимита (пользователи с API токеном не подчиняются обычным лимитам) ---
+    # API пользователи не учитываются в общих лимитах обычных пользователей
+
+    # --- 5. Проверка диска ---
+    from app.config import check_disk_space, MIN_DISK_SPACE, format_bytes
+
+    enough_space, free_bytes, free_formatted = check_disk_space(actual_size)
+    if not enough_space:
+        error_msg = (f"На сервере недостаточно свободного места. "
+                     f"Свободно {free_formatted}, требуется ещё минимум {format_bytes(MIN_DISK_SPACE)} "
+                     f"после загрузки.")
+        raise HTTPException(status_code=507, detail=error_msg)
+
+    # --- 6. Определение MIME-типа ---
+    mime_type = "application/octet-stream"
+    try:
+        mime_detected = magic.from_buffer(file_data, mime=True)
+        if mime_detected:
+            mime_type = mime_detected
+    except Exception as e:
+        print(f"⚠️ Ошибка определения MIME-типа через magic: {e}")
+        if file.filename:
+            ext = Path(file.filename).suffix.lower()
+            if ext in EXT_TO_MIME:
+                mime_type = EXT_TO_MIME[ext]
+
+    # --- 7. Валидация параметров ---
+    if webhook_url and (len(webhook_url) < 4 or len(webhook_url) > 1024):
+        raise HTTPException(status_code=400, detail="webhook_url должен быть от 4 до 1024 символов")
+
+    if delete_password and (len(delete_password) < 4 or len(delete_password) > 16):
+        raise HTTPException(status_code=400, detail="delete_password должен быть от 4 до 16 символов")
+
+    if ttl_hours is not None and (ttl_hours < 0 or ttl_hours > 87600):
+        raise HTTPException(status_code=400, detail="ttl_hours должен быть от 0 до 87600")
+
+    expire_date_parsed = None
+    if expire_date:
+        try:
+            dt = datetime.strptime(expire_date[:10], "%Y-%m-%d")
+            expire_date_parsed = dt.strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Неверный формат даты удаления. Используйте YYYY-MM-DD")
+
+    # --- 8. Сохранение файла ---
+    filename = file.filename or "file"
+    token = generate_token()
+
+    try:
+        public_path = await file_storage.save(token, file_data, filename, mime_type)
+        print(f"✅ [/api/upload] Файл сохранён: {public_path}")
+    except OSError as e:
+        if "No space left on device" in str(e):
+            raise HTTPException(status_code=507, detail="На сервере закончилось свободное место.")
+        raise HTTPException(status_code=500, detail=f"Ошибка при сохранении файла: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при сохранении файла: {e}")
+
+    # --- 9. Сохранение метаданных ---
+    try:
+        await save_file_metadata(
+            token=token,
+            filename=filename,
+            mime_type=mime_type,
+            size=actual_size,
+            file_path=public_path,
+            webhook_url=webhook_url or '',
+            delete_password=delete_password or '',
+            expire_date=expire_date_parsed,
+            ttl_hours=ttl_hours or 0,
+            author=author,
+        )
+        print(f"💾 [/api/upload] Метаданные сохранены для токена: {token} (автор: {author})")
+    except Exception as e:
+        try:
+            await file_storage.delete(token, filename)
+        except:
+            pass
+        raise HTTPException(status_code=500, detail=f"Ошибка при сохранении метаданных: {e}")
+
+    # --- 10. Ответ ---
+    view_path = f"/view/{token}"
+    file_path = file_storage.get_public_path(token, filename)
+    download_path = f"/download/{token}"
+
+    return APIUploadResponse(
+        status="success",
+        token=token,
+        view_url=view_path,
+        file_url=file_path,
+        download_url=download_path,
+        filename=filename,
+        size=actual_size,
+        mime_type=mime_type,
+        author=author,
+    )
+
+
+# =========================================================
 # ЗАГРУЗКА С ПРЕДПРОСМОТРОМ
 # =========================================================
 @app.post("/api/preview")
@@ -780,13 +1134,32 @@ async def create_preview(
         background_tasks: BackgroundTasks = None
 ):
     # Проверяем доступ к большим файлам через отдельную функцию
-    effective_max_size = MAX_UNLIMITED_FILE_SIZE if check_unlimited_upload_access(request) else MAX_FILE_SIZE
+    has_unlimited = check_unlimited_upload_access(request)
+    effective_max_size = MAX_UNLIMITED_FILE_SIZE if has_unlimited else MAX_FILE_SIZE
+
     # Проверяем размер файла ДО чтения в память (если файл сообщает свой размер)
     if file.size is not None and file.size > effective_max_size:
         raise HTTPException(
             status_code=400,
             detail=f"Файл слишком большой. {get_file_size_limit_text(effective_max_size)}"
         )
+
+    # ===== ПРОВЕРКА ЛИМИТОВ ДЛЯ ОБЫЧНЫХ ПОЛЬЗОВАТЕЛЕЙ =====
+    # Определяем IP клиента
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        client_ip = forwarded.split(",")[0].strip()
+    else:
+        client_ip = request.client.host
+
+    # Проверяем лимиты по размеру файла (для обычных пользователей)
+    if file.size is not None and file.size > 0:
+        limit_check = await check_upload_limits(file.size, has_unlimited)
+        if limit_check:
+            raise HTTPException(
+                status_code=429 if 'limit' in limit_check.get('type', '') else 400,
+                detail=limit_check['detail']
+            )
 
     try:
         file_data = await file.read()
@@ -800,10 +1173,19 @@ async def create_preview(
         raise HTTPException(status_code=400, detail=f"Ошибка чтения файла: {e}")
 
     # Дополнительная проверка после чтения (на случай если file.size был None)
-    if len(file_data) > effective_max_size:
+    actual_size = len(file_data)
+    if actual_size > effective_max_size:
         raise HTTPException(
             status_code=400,
             detail=f"Файл слишком большой. {get_file_size_limit_text(effective_max_size)}"
+        )
+
+    # Проверка лимитов для обычных пользователей после чтения (точный размер)
+    limit_check = await check_upload_limits(actual_size, has_unlimited)
+    if limit_check:
+        raise HTTPException(
+            status_code=429 if 'limit' in limit_check.get('type', '') else 400,
+            detail=limit_check['detail']
         )
 
     # Проверка свободного места на диске
@@ -1007,6 +1389,14 @@ async def confirm_upload(
         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении файла: {e}")
 
     try:
+        # ===== АВТОУДАЛЕНИЕ: запускаем при загрузке нового файла =====
+        # Если обычные пользователи (без unlimited) - запускаем автоудаление
+        has_unlimited = check_unlimited_upload_access(request)
+        if not has_unlimited:
+            deleted = await trigger_auto_cleanup()
+            if deleted > 0:
+                print(f"🗑️ При загрузке удалено {deleted} устаревших файлов")
+
         await save_file_metadata(
             token=token,
             filename=filename,
@@ -1019,6 +1409,19 @@ async def confirm_upload(
             ttl_hours=ttl_hours
         )
         print(f"💾 Метаданные сохранены для токена: {token}")
+
+        # ===== ЛОГИРОВАНИЕ ЗАГРУЗКИ =====
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            client_ip = forwarded.split(",")[0].strip()
+        else:
+            client_ip = request.client.host
+
+        if not has_unlimited:
+            await log_upload(client_ip, token, size)
+            # Очищаем старые записи (старше 48 часов)
+            await cleanup_old_upload_logs(48)
+
     except Exception as e:
         # Попытка удалить файл из хранилища при ошибке сохранения метаданных
         try:
@@ -1043,7 +1446,7 @@ async def confirm_upload(
         "download_url": download_path,
         "has_webhook": bool(webhook_url),
         "expire_date": expire_date_parsed,
-        "ttl_hours": ttl_hours
+        "ttl_hours": ttl_hours,
     }
 
 

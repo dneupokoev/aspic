@@ -100,6 +100,56 @@ function getFileTypeName(mimeType) {
     return 'Файл';
 }
 
+// ============================================
+// СТАТИСТИКА ЛИМИТОВ ЗАГРУЗОК
+// ============================================
+
+async function loadUploadStats() {
+    const limitsText = document.getElementById('uploadLimitsText');
+    if (!limitsText) return;
+
+    try {
+        const response = await fetch('/api/upload-stats');
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        if (data.has_unlimited) {
+            limitsText.innerHTML = '🔓 У вас безлимитная загрузка. Файлы не удаляются автоматически.';
+            return;
+        }
+
+        const remaining = data.files_remaining;
+        const used = data.files_used;
+        const totalUsed = data.total_size_used_mb;
+        const totalRemain = data.total_size_remaining_mb;
+        const maxFiles = data.max_files;
+        const maxTotal = data.max_total_size_mb;
+        const maxFile = data.max_file_size_mb;
+        const windowH = data.window_hours;
+
+        // Формируем подробный текст с остатками
+        limitsText.innerHTML =
+            `Лимиты общие для всех: не более ${maxFiles} файлов и суммарно ${maxTotal} МБ за ${windowH} часов. ` +
+            `Каждый файл до ${maxFile} МБ. ` +
+            `Загружено файлов за ${windowH} часов: ${used} на ${totalUsed} МБ. ` +
+            `Осталось: ${remaining} файлов на ${totalRemain} МБ.`;
+
+        // Если лимиты почти исчерпаны - подсветка
+        const limitsInfo = document.getElementById('uploadLimitsInfo');
+        if (limitsInfo) {
+            if (remaining <= 5 || totalRemain <= maxTotal * 0.1) {
+                limitsInfo.classList.add('limits-warning');
+            } else {
+                limitsInfo.classList.remove('limits-warning');
+            }
+        }
+    } catch (e) {
+        console.error('Ошибка загрузки статистики лимитов:', e);
+        limitsText.textContent = 'Лимиты: проверьте подключение к серверу.';
+    }
+}
+
 function setLoading(show) {
     if (show) {
         elements.loadingIndicator.classList.remove('hidden');
@@ -473,7 +523,13 @@ async function uploadForPreview(file, textContent = null) {
             let isRateLimit = false;
 
             if (response.status === 429) {
-                errorMsg = '⏳ Слишком много попыток загрузки. Подождите 1 минуту.';
+                // Пробуем получить детальное сообщение от сервера
+                try {
+                    const errorData = await response.json();
+                    errorMsg = '⏳ ' + (errorData.detail || 'Превышены лимиты загрузки. Подождите, пока старые загрузки выйдут из окна.');
+                } catch (e) {
+                    errorMsg = '⏳ Превышены лимиты загрузки. Подождите, пока старые загрузки выйдут из окна.';
+                }
                 isRateLimit = true;
             } else {
                 try {
@@ -761,6 +817,9 @@ async function confirmUpload() {
         setState(State.RESULT);
         hideErrorMessage();
 
+        // Обновляем статистику лимитов после загрузки
+        loadUploadStats();
+
     } catch (error) {
         console.error('Confirm error:', error);
         showError(error.message || '❌ Ошибка при создании ссылки', error.isRateLimit);
@@ -1039,4 +1098,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // Загружаем статистику лимитов при старте
+    loadUploadStats();
 });

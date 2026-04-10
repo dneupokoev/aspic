@@ -60,6 +60,16 @@
             </div>
 
             <p class="upload-hint">{{ upload_hint }}</p>
+
+            <!-- Информация о лимитах для обычных пользователей -->
+            {% if not has_unlimited %}
+            <div class="upload-limits-info" id="uploadLimitsInfo">
+                <span class="limits-icon">📏</span>
+                <span class="limits-text" id="uploadLimitsText">
+                    Загрузка лимитов...
+                </span>
+            </div>
+            {% endif %}
         </div>
 
         <!-- СОСТОЯНИЕ 2: ПРЕДПРОСМОТР -->

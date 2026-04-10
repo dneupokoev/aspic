@@ -142,6 +142,13 @@ async def init_db(db_path: str = DB_PATH):
                 # Обновляем список колонок после удаления
                 files_columns = await get_table_info(db, "files")
 
+            # Добавляем поле author (кто загрузил файл через API)
+            if 'author' not in files_columns:
+                print("🔄 Обновление таблицы files: добавляем поле author...")
+                await db.execute("ALTER TABLE files ADD COLUMN author TEXT DEFAULT ''")
+                # Обновляем список колонок после добавления
+                files_columns = await get_table_info(db, "files")
+
             # === ОПТИМИЗАЦИЯ ИНДЕКСОВ ===
 
             # 1. Удаляем старые неоптимальные индексы (если они есть)
@@ -227,6 +234,7 @@ async def save_file_metadata(
         delete_password: str = '',
         expire_date: str = None,  # дата удаления
         ttl_hours: int = 0,        # TTL после последнего обращения (в часах)
+        author: str = '',          # автор загрузки (из API токена)
         db_path: str = DB_PATH
 ) -> None:
     """Сохраняет метаданные загруженного файла."""
@@ -272,6 +280,11 @@ async def save_file_metadata(
                 values.append(ttl_hours)
                 placeholders.append('?')
 
+            if 'author' in columns and author:
+                fields.append('author')
+                values.append(author)
+                placeholders.append('?')
+
             query = f'''
                 INSERT INTO files ({', '.join(fields)})
                 VALUES ({', '.join(placeholders)})
@@ -314,6 +327,11 @@ async def save_file_metadata(
                 values.append(ttl_hours)
                 placeholders.append('?')
 
+            if 'author' in columns and author:
+                fields.append('author')
+                values.append(author)
+                placeholders.append('?')
+
             query = f'''
                 INSERT INTO files ({', '.join(fields)})
                 VALUES ({', '.join(placeholders)})
@@ -343,7 +361,7 @@ async def get_file_metadata(
 
         # Добавляем новые поля, если они существуют
         optional_fields = ['last_view_date', 'last_download_date', 'webhook_url', 'delete_password',
-                           'expire_date', 'ttl_hours']
+                           'expire_date', 'ttl_hours', 'author']
         for field in optional_fields:
             if field in columns:
                 base_fields.append(field)
@@ -407,6 +425,9 @@ async def get_file_metadata(
                 field_index += 1
             if 'ttl_hours' in columns and len(row) > field_index:
                 result['ttl_hours'] = row[field_index]
+                field_index += 1
+            if 'author' in columns and len(row) > field_index:
+                result['author'] = row[field_index]
 
             return result
         return None
@@ -634,6 +655,185 @@ async def get_comments(
                 'text': row[2],
                 'type': row[3],
                 'date': row[4]
+            }
+            for row in rows
+        ]
+
+
+# =========================================================
+# ЛОГИРОВАНИЕ ЗАГРУЗОК И ПРОВЕРКА ЛИМИТОВ
+# =========================================================
+
+async def init_upload_log_table(db_path: str = DB_PATH):
+    """Создаёт таблицу upload_log и auto_cleanup_log, если их нет."""
+    async with aiosqlite.connect(db_path) as db:
+        # Таблица для отслеживания загрузок обычных пользователей
+        cursor = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='upload_log'"
+        )
+        if not await cursor.fetchone():
+            await db.execute('''
+                CREATE TABLE upload_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    client_ip TEXT,
+                    file_token TEXT NOT NULL,
+                    file_size INTEGER NOT NULL,
+                    upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            await db.execute('CREATE INDEX idx_upload_log_date ON upload_log(upload_date)')
+            await db.execute('CREATE INDEX idx_upload_log_token ON upload_log(file_token)')
+            print("✅ Таблица upload_log создана")
+
+        # Таблица для отслеживания последнего автоудаления
+        cursor = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='auto_cleanup_log'"
+        )
+        if not await cursor.fetchone():
+            await db.execute('''
+                CREATE TABLE auto_cleanup_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    last_cleanup_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            # Всегда одна запись - последняя
+            await db.execute('INSERT INTO auto_cleanup_log (last_cleanup_date) VALUES (CURRENT_TIMESTAMP)')
+            print("✅ Таблица auto_cleanup_log создана")
+
+        await db.commit()
+
+
+async def log_upload(
+        client_ip: str,
+        file_token: str,
+        file_size: int,
+        db_path: str = DB_PATH
+) -> None:
+    """Записывает факт загрузки файла (IP сохраняется для информации)."""
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute('''
+            INSERT INTO upload_log (client_ip, file_token, file_size)
+            VALUES (?, ?, ?)
+        ''', (client_ip, file_token, file_size))
+        await db.commit()
+
+
+async def get_upload_stats(
+        window_hours: int,
+        db_path: str = DB_PATH
+) -> dict:
+    """
+    Возвращает ОБЩУЮ статистику загрузок за последние N часов:
+    - file_count: количество файлов
+    - total_size: суммарный размер
+    - oldest_upload: дата самой старой загрузки в окне
+    """
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute('''
+            SELECT COUNT(*) as file_count,
+                   COALESCE(SUM(file_size), 0) as total_size,
+                   MIN(upload_date) as oldest_upload
+            FROM upload_log
+            WHERE upload_date >= datetime('now', ?)
+        ''', (f'-{window_hours} hours',))
+
+        row = await cursor.fetchone()
+        return {
+            'file_count': row[0] or 0,
+            'total_size': row[1] or 0,
+            'oldest_upload': row[2]  # может быть None
+        }
+
+
+async def get_wait_time_for_limit(
+        window_hours: int,
+        db_path: str = DB_PATH
+) -> int:
+    """
+    Вычисляет, сколько секунд нужно ждать, чтобы самая старая запись вышла из окна.
+    Возвращает 0, если ждать не нужно.
+    """
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute('''
+            SELECT MIN(upload_date) as oldest
+            FROM upload_log
+            WHERE upload_date >= datetime('now', ?)
+        ''', (f'-{window_hours} hours',))
+
+        row = await cursor.fetchone()
+        oldest = row[0]
+        if not oldest:
+            return 0
+
+        from datetime import datetime
+        oldest_dt = datetime.strptime(oldest, "%Y-%m-%d %H:%M:%S")
+        now = datetime.utcnow()
+        elapsed = (now - oldest_dt).total_seconds()
+        wait = (window_hours * 3600) - elapsed
+        return max(0, int(wait))
+
+
+async def cleanup_old_upload_logs(
+        max_age_hours: int = 48,
+        db_path: str = DB_PATH
+) -> None:
+    """Удаляет записи о загрузках старше N часов (очистка)."""
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute('''
+            DELETE FROM upload_log
+            WHERE upload_date < datetime('now', ?)
+        ''', (f'-{max_age_hours} hours',))
+        await db.commit()
+
+
+# =========================================================
+# АВТОМАТИЧЕСКОЕ УДАЛЕНИЕ ФАЙЛОВ ОБЫЧНЫХ ПОЛЬЗОВАТЕЛЕЙ
+# =========================================================
+
+async def get_last_auto_cleanup_time(db_path: str = DB_PATH) -> str:
+    """Возвращает дату последнего автоудаления."""
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute(
+            'SELECT last_cleanup_date FROM auto_cleanup_log ORDER BY id DESC LIMIT 1'
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else None
+
+
+async def update_auto_cleanup_time(db_path: str = DB_PATH) -> None:
+    """Обновляет время последнего автоудаления."""
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(
+            'UPDATE auto_cleanup_log SET last_cleanup_date = CURRENT_TIMESTAMP'
+        )
+        await db.commit()
+
+
+async def get_files_for_auto_cleanup_expired(
+        db_path: str = DB_PATH
+) -> list:
+    """
+    Возвращает файлы с истёкшей expire_date (пользователь сам задал дату при загрузке).
+    """
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute('''
+            SELECT token, filename, file_path, upload_date, expire_date
+            FROM files
+            WHERE deleted = 0
+              AND expire_date IS NOT NULL
+              AND expire_date != ''
+              AND expire_date < datetime('now')
+            ORDER BY expire_date ASC
+        ''')
+
+        rows = await cursor.fetchall()
+        return [
+            {
+                'token': row[0],
+                'filename': row[1],
+                'file_path': row[2],
+                'upload_date': row[3],
+                'expire_date': row[4]
             }
             for row in rows
         ]

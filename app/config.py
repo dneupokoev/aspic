@@ -211,6 +211,58 @@ WEBHOOK_MAX_HEADERS_SIZE = int(os.getenv('WEBHOOK_MAX_HEADERS_SIZE', 8192))  # 8
 STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local').lower()
 
 # ============================================
+# ОГРАНИЧЕНИЯ ДЛЯ ОБЫЧНЫХ ПОЛЬЗОВАТЕЛЕЙ (без UNLIMITED_UPLOAD_SECRET)
+# ============================================
+# Окно отслеживания: количество часов, за которое считаем загрузки
+UPLOAD_LIMIT_WINDOW_HOURS = int(os.getenv('UPLOAD_LIMIT_WINDOW_HOURS', 6))
+# Максимальное количество файлов за окно
+UPLOAD_LIMIT_MAX_FILES = int(os.getenv('UPLOAD_LIMIT_MAX_FILES', 100))
+# Максимальный размер одного файла (байт), по умолчанию 100 МБ
+UPLOAD_LIMIT_MAX_FILE_SIZE = int(os.getenv('UPLOAD_LIMIT_MAX_FILE_SIZE', 104857600))
+# Максимальный суммарный размер всех файлов за окно (байт), по умолчанию 500 МБ
+UPLOAD_LIMIT_MAX_TOTAL_SIZE = int(os.getenv('UPLOAD_LIMIT_MAX_TOTAL_SIZE', 524288000))
+
+# ============================================
+# АВТОМАТИЧЕСКОЕ УДАЛЕНИЕ ФАЙЛОВ (ПО ИСТЁКШЕЙ ДАТЕ)
+# ============================================
+# Дата удаления задаётся пользователем при загрузке.
+# Минимальный интервал между запусками автоудаления (в часах), по умолчанию 8
+AUTO_CLEANUP_MIN_INTERVAL_HOURS = int(os.getenv('AUTO_CLEANUP_MIN_INTERVAL_HOURS', 8))
+
+# ============================================
+# API ТОКЕНЫ ДЛЯ ЗАГРУЗКИ ЧЕРЕЗ /api/upload
+# ============================================
+# Словарь токенов в формате "токен:имя_владельца" через запятую
+# Пример: "abc123:Менеджер Иван,def456:API Сервис XYZ"
+# Оставляем пустым, чтобы отключить эндпоинт /api/upload
+API_UPLOAD_TOKENS_RAW = os.getenv('API_UPLOAD_TOKENS', '')
+
+
+def parse_api_tokens() -> dict:
+    """
+    Парсит строку API_UPLOAD_TOKENS из .env.
+    Возвращает dict: {token: author_name}
+    """
+    tokens = {}
+    raw = API_UPLOAD_TOKENS_RAW.strip()
+    if not raw:
+        return tokens
+
+    for entry in raw.split(','):
+        entry = entry.strip()
+        if ':' in entry:
+            token, name = entry.split(':', 1)
+            token = token.strip()
+            name = name.strip()
+            if token and name:
+                tokens[token] = name
+
+    return tokens
+
+
+API_UPLOAD_TOKENS = parse_api_tokens()
+
+# ============================================
 # ОБХОД ЛИМИТА РАЗМЕРА ФАЙЛА
 # ============================================
 # Секретный ключ для обхода лимита размера файла
@@ -485,3 +537,21 @@ def get_not_found_message() -> str:
 def get_api_only_message() -> str:
     """Возвращает сообщение для режима API-only."""
     return "Веб-интерфейс ЗАГРУЗКИ ФАЙЛОВ отключен."
+
+
+def format_wait_time(seconds: int) -> str:
+    """Форматирует время ожидания в человекочитаемый вид."""
+    if seconds < 60:
+        return f"{seconds} сек."
+    elif seconds < 3600:
+        minutes = seconds // 60
+        remaining = seconds % 60
+        if remaining > 0:
+            return f"{minutes} мин. {remaining} сек."
+        return f"{minutes} мин."
+    else:
+        hours = seconds // 3600
+        remaining_minutes = (seconds % 3600) // 60
+        if remaining_minutes > 0:
+            return f"{hours} ч. {remaining_minutes} мин."
+        return f"{hours} ч."
