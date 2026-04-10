@@ -168,6 +168,22 @@ BLOCKED_IP_RANGES = [
     '100.64.0.0/10',  # carrier-grade NAT
     '198.18.0.0/15',  # network benchmark
 ]
+# Опасные порты, которые нельзя использовать для вебхуков
+BLOCKED_PORTS = {
+    22,  # SSH
+    23,  # Telnet
+    25,  # SMTP
+    3306,  # MySQL
+    5432,  # PostgreSQL
+    6379,  # Redis
+    27017,  # MongoDB
+    9200,  # Elasticsearch
+    11211,  # Memcached
+    5984,  # CouchDB
+    7000,  # Cassandra
+    8086,  # InfluxDB
+    9042,  # Cassandra CQL
+}
 
 # Разрешённые протоколы (только HTTPS в продакшене)
 if DEBUG:
